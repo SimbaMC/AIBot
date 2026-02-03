@@ -1,7 +1,7 @@
 package com.bot.aibot.events;
 
-import com.bot.aibot.network.PacketHandler; // ⚠️ 确保你已经创建了 PacketHandler
-import com.bot.aibot.network.packet.S2CPlayMusicPacket; // ⚠️ 确保你已经创建了 S2CPlayMusicPacket
+import com.bot.aibot.network.PacketHandler;
+import com.bot.aibot.network.packet.S2CPlayMusicPacket;
 import com.bot.aibot.utils.NeteaseApi;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;

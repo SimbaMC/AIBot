@@ -6,7 +6,9 @@ import com.bot.aibot.events.AdvancementEvents;
 import com.bot.aibot.events.MinecraftEvents;
 import com.bot.aibot.events.ModCommands;
 import com.bot.aibot.network.BotClient;
+import com.bot.aibot.network.PacketHandler;
 import com.bot.aibot.utils.ChineseUtils;
+import com.bot.aibot.utils.NeteaseApi;
 import net.minecraft.server.MinecraftServer;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.server.ServerStartingEvent;
@@ -36,13 +38,17 @@ public class BottyMod {
         // 【新增】注册成就事件监听器
         MinecraftForge.EVENT_BUS.register(new AdvancementEvents());
         // 注册网络包
-        com.bot.aibot.network.PacketHandler.register();
+        PacketHandler.register();
     }
 
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
         serverInstance = event.getServer();
         ChineseUtils.load(); // 加载汉化
+
+        // 【新增】服务器启动时，尝试恢复登录状态
+        NeteaseApi.loadCookies();
+
         System.out.println(">>> [Bot] 正在启动网络模块...");
         BotClient.getInstance().connect(); // 启动连接
     }

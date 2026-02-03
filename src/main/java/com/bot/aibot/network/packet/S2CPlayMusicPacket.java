@@ -2,34 +2,45 @@ package com.bot.aibot.network.packet;
 
 import com.bot.aibot.client.ClientMusicManager;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;
 
 import java.util.function.Supplier;
 
 public class S2CPlayMusicPacket {
-    private final String songUrl;
-    private final String songName;
+    private final String url;
+    private final String name;
 
-    public S2CPlayMusicPacket(String songUrl, String songName) {
-        this.songUrl = songUrl;
-        this.songName = songName;
+    public S2CPlayMusicPacket(String url, String name) {
+        this.url = url;
+        this.name = name;
     }
 
-    public static void encode(S2CPlayMusicPacket msg, FriendlyByteBuf buf) {
-        buf.writeUtf(msg.songUrl);
-        buf.writeUtf(msg.songName);
+    // 解码构造函数
+    public S2CPlayMusicPacket(FriendlyByteBuf buf) {
+        this.url = buf.readUtf();
+        this.name = buf.readUtf();
     }
 
-    public static S2CPlayMusicPacket decode(FriendlyByteBuf buf) {
-        return new S2CPlayMusicPacket(buf.readUtf(), buf.readUtf());
+    // 编码方法
+    public void encode(FriendlyByteBuf buf) {
+        buf.writeUtf(this.url);
+        buf.writeUtf(this.name);
     }
 
-    public static void handle(S2CPlayMusicPacket msg, Supplier<NetworkEvent.Context> ctx) {
-        ctx.get().enqueueWork(() -> {
-            // 这一步是在客户端执行的
-            // 调用客户端音乐管理器播放
-            ClientMusicManager.play(msg.songUrl, msg.songName);
+    // 关键：处理逻辑
+    public void handle(Supplier<NetworkEvent.Context> contextSupplier) {
+        NetworkEvent.Context context = contextSupplier.get();
+        context.enqueueWork(() -> {
+            // 绝杀调试：在控制台强制打印
+            System.out.println(">>> [Packet] 客户端已接收到数据包! URL: " + url);
+
+            // 安全地在客户端执行代码，防止 Side 冲突导致静默崩溃
+            DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
+                ClientMusicManager.play(url, name);
+            });
         });
-        ctx.get().setPacketHandled(true);
+        context.setPacketHandled(true);
     }
 }

@@ -1,7 +1,6 @@
 package com.bot.aibot.utils;
 
 import com.bot.aibot.config.BotConfig;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -39,7 +38,7 @@ public class NeteaseApi {
             .proxy(ProxySelector.of(null))
             .build();
 
-    // 3. User-Agent (Chrome 96 - Mod 同款)
+    // 3. User-Agent
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.45 Safari/537.36";
 
     // ================= 内部类 =================
@@ -55,17 +54,59 @@ public class NeteaseApi {
         }
     }
 
+    // ================= 【核心新增】恢复登录状态 =================
+
+    /**
+     * 从配置文件加载已保存的 Cookie，实现“免扫码登录”
+     */
+    public static void loadCookies() {
+        try {
+            // 1. 先初始化基础 Cookie (os=pc 等)
+            initBaseCookie();
+
+            // 2. 检查 Config 里有没有存货
+            if (BotConfig.SERVER == null) return;
+            String savedCookie = BotConfig.SERVER.neteaseCookie.get();
+
+            if (savedCookie == null || savedCookie.isEmpty()) {
+                System.out.println(">>> [API] 未检测到历史 Cookie，请使用 /bot login 扫码登录。");
+                return;
+            }
+
+            System.out.println(">>> [API] 正在恢复登录状态...");
+
+            // 3. 解析并注入到 cookieManager
+            URI uri = URI.create("https://music.163.com");
+            CookieStore store = cookieManager.getCookieStore();
+
+            // 简单解析分号分隔的 Cookie 串
+            String[] parts = savedCookie.split(";");
+            for (String part : parts) {
+                String[] kv = part.trim().split("=", 2);
+                if (kv.length == 2) {
+                    HttpCookie cookie = new HttpCookie(kv[0], kv[1]);
+                    cookie.setPath("/");
+                    cookie.setDomain(".music.163.com");
+                    store.add(uri, cookie);
+                }
+            }
+
+            System.out.println(">>> [API] 登录状态恢复成功！(加载了 " + parts.length + " 个 Cookie 条目)");
+
+        } catch (Exception e) {
+            System.err.println(">>> [API] Cookie 恢复失败: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
     // ================= 4. 登录流程 (Mod Copy Mode) =================
 
     public static String getLoginKey() {
         System.out.println(">>> [Debug] 1. 获取 Key (Mod Copy Mode - No Host Header)");
         try {
             initBaseCookie();
-
-            // 接口: /api/login/qrcode/unikey
             String url = "https://music.163.com/api/login/qrcode/unikey";
             String jsonResp = requestRaw(url, "type=1");
-
             System.out.println(">>> [Debug] Key Resp: " + jsonResp);
 
             if (jsonResp == null) return null;
@@ -86,10 +127,8 @@ public class NeteaseApi {
 
     public static LoginResult checkLoginStatus(String key) {
         try {
-
             String url = "https://music.163.com/api/login/qrcode/client/login";
             String formData = "key=" + key + "&type=1";
-
             return requestRawForLogin(url, formData);
         } catch (Exception e) { e.printStackTrace(); }
         return new LoginResult(800, null, "接口异常");
@@ -101,7 +140,6 @@ public class NeteaseApi {
         try {
             URI uri = URI.create("https://music.163.com");
             Map<String, List<String>> cookies = new HashMap<>();
-            // Cookie: appver=2.7.1.198277; os=pc;
             cookies.put("Set-Cookie", List.of(
                     "os=pc; Path=/; Domain=.music.163.com",
                     "appver=2.7.1.198277; Path=/; Domain=.music.163.com"
@@ -134,7 +172,6 @@ public class NeteaseApi {
                 .uri(URI.create(url))
                 .header("User-Agent", USER_AGENT)
                 .header("Referer", "http://music.163.com")
-                // .header("Host", "music.163.com") <-- 【删掉了这行】
                 .header("Accept", "*/*")
                 .header("Accept-Language", "zh-CN,zh;q=0.8,gl;q=0.6,zh-TW;q=0.4")
                 .header("Content-Type", "application/x-www-form-urlencoded");
@@ -147,7 +184,6 @@ public class NeteaseApi {
 
         HttpResponse<String> resp = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
         String body = resp.body();
-
         System.out.println(">>> [Debug-Check] " + body);
 
         JsonObject root = JsonParser.parseString(body).getAsJsonObject();
@@ -168,8 +204,6 @@ public class NeteaseApi {
     }
 
     // ================= 6. 搜索 (保留) =================
-    // 请务必保留 search, getSongUrl 和 encrypt 代码
-
     public static String search(String keyword) {
         try {
             Map<String, Object> data = new HashMap<>();
@@ -182,6 +216,7 @@ public class NeteaseApi {
             }
         } catch (Exception e) {} return null;
     }
+
     public static String getSongUrl(String songId) {
         try {
             Map<String, Object> data = new HashMap<>();
@@ -192,6 +227,7 @@ public class NeteaseApi {
             if (root.get("code").getAsInt() == 200 && root.getAsJsonArray("data").size() > 0) return root.getAsJsonArray("data").get(0).getAsJsonObject().get("url").getAsString();
         } catch (Exception e) {} return null;
     }
+
     private static String request(String url, Map<String, Object> data) throws Exception {
         String jsonText = new com.google.gson.Gson().toJson(data);
         Map<String, String> encrypted = encrypt(jsonText);
@@ -201,6 +237,8 @@ public class NeteaseApi {
         HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
         return resp.body();
     }
+
+    // 加密部分保持不变...
     private static final String MODULUS = "00e0b509f6259df8642dbc35662901477df22677ec152b5ff68ace615bb7b725152b3ab17a876aea8a5aa76d2e417629ec4ee341f56135fccf695280104e0312ecbda92557c93870114af6c9d05c4f7f0c3685b7a46bee255932575cce10b424d813cfe4875d3e82047b97ddef52741d546b8e289dc6935b3ece0462db0a22b8e7";
     private static final String NONCE = "0CoJUm6Qyw8W8jud";
     private static final String PUB_KEY = "010001";
