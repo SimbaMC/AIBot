@@ -1,96 +1,117 @@
 package com.bot.aibot.events;
 
+import com.bot.aibot.API.QrCode;
 import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.utils.NeteaseApi;
+import com.bot.aibot.utils.NeteaseApi.LoginResult;
+// 引入刚才拖进去的库
 import com.mojang.brigadier.Command;
+import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.Style;
-
 
 public class LoginCommand implements Command<CommandSourceStack> {
 
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        dispatcher.register(Commands.literal("bot")
+                .then(Commands.literal("login")
+                        .executes(new LoginCommand())));
+    }
+
     @Override
-    public int run(CommandContext<CommandSourceStack> context) {
-        context.getSource().sendSuccess(() -> Component.literal("§7[Bot] 正在申请二维码..."), false);
-
+    public int run(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         new Thread(() -> {
-            // 1. 获取 Key
-            String key = NeteaseApi.getLoginKey();
-            if (key == null) {
-                sendMsg(context, "§c申请失败，请查看后台报错。");
-                return;
+            try {
+                CommandSourceStack source = context.getSource();
+                sendMsg(source, "🔍 正在获取登录 Key...");
+
+                // 1. 获取 Key
+                String key = NeteaseApi.getLoginKey();
+                if (key == null) {
+                    sendMsg(source, "❌ 获取 Key 失败");
+                    return;
+                }
+
+                String url = NeteaseApi.getLoginQrUrl(key);
+
+                // =========================================================
+                // 【本地算法生成】适配 IDEA 深色控制台
+                // =========================================================
+                try {
+                    // 使用刚才拖进来的 QrCode 类 (Low 容错率让矩阵更稀疏，易于识别)
+                    QrCode qr = QrCode.encodeText(url, QrCode.Ecc.LOW);
+
+                    System.out.println("\n");
+                    System.out.println(">>> 请拉宽控制台，使用手机扫码：");
+
+                    for (int y = 0; y < qr.size; y++) {
+                        StringBuilder sb = new StringBuilder();
+                        sb.append("      "); // 左边距
+                        for (int x = 0; x < qr.size; x++) {
+                            // getModule: true=黑(数据), false=白(背景)
+                            boolean isBlackData = qr.getModule(x, y);
+
+                            // 【视觉修正逻辑】
+                            // 控制台是黑底的。
+                            // 我们用 "██" (白色字符) 来画二维码的背景(白)。
+                            // 我们用 "  " (空格) 来透出控制台的底色(黑)，作为二维码的数据点。
+                            // 并且横向打印两个字符，防止二维码变瘦长。
+                            if (isBlackData) {
+                                sb.append("  "); // 黑点 (透出背景)
+                            } else {
+                                sb.append("██"); // 白点 (显示字符)
+                            }
+                        }
+                        System.out.println(sb.toString());
+                    }
+                    System.out.println("\n");
+
+                } catch (Exception e) {
+                    System.out.println("⚠️ 二维码绘制失败，请复制链接：" + url);
+                    e.printStackTrace();
+                }
+                // =========================================================
+
+                if (source.getEntity() != null) {
+                    source.sendSystemMessage(Component.literal("§b[点击这里扫码登录]")
+                            .setStyle(Style.EMPTY
+                                    .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, url))
+                                    .withUnderlined(true)));
+                }
+
+                // 轮询检查
+                int timeout = 0;
+                while (timeout < 60) {
+                    Thread.sleep(3000);
+                    LoginResult result = NeteaseApi.checkLoginStatus(key);
+                    if (result.code == 803) {
+                        sendMsg(source, "✅ 登录成功！Cookie 已保存。");
+                        if (result.cookie != null && BotConfig.SERVER != null) {
+                            BotConfig.SERVER.neteaseCookie.set(result.cookie);
+                            BotConfig.SERVER.neteaseCookie.save();
+                        }
+                        break;
+                    } else if (result.code == 800) {
+                        sendMsg(source, "❌ 已过期");
+                        break;
+                    }
+                    timeout++;
+                }
+
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-
-            // 2. 获取二维码 URL (netease://...)
-            String qrUrl = NeteaseApi.getLoginQrUrl(key);
-
-            // 3. 转换成在线二维码图片链接 (利用 qrserver.com API)
-            // 这样玩家点开链接就能看到图，不用在控制台看字符画
-            String webQrLink = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" + qrUrl;
-
-            // 4. 发送可点击的链接给玩家
-            Component linkText = Component.literal("§b§l[点击这里打开二维码]")
-                    .setStyle(Style.EMPTY
-                            .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, webQrLink))
-                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("打开网易云APP扫码")))
-                    );
-
-            sendMsg(context, "§a二维码已生成！请使用 §e网易云音乐APP §a扫码：");
-            context.getSource().sendSuccess(() -> linkText, false);
-
-            // 5. 开始轮询 (检查是否扫码)
-            checkLoop(context, key);
-
         }).start();
-
         return 1;
     }
 
-    private void checkLoop(CommandContext<CommandSourceStack> context, String key) {
-        long startTime = System.currentTimeMillis();
-
-        while (System.currentTimeMillis() - startTime < 60000) { // 超时时间 60秒
-            try {
-                Thread.sleep(3000); // 每3秒查一次
-
-                NeteaseApi.LoginResult result = NeteaseApi.checkLoginStatus(key);
-
-                if (result.code == 800) {
-                    sendMsg(context, "§c二维码已过期，请重新输入指令。");
-                    return;
-                }
-                if (result.code == 802) {
-                    // 只要发一次提示就行，避免刷屏，这里简化处理不发了，或者可以发"等待确认"
-                }
-                if (result.code == 803) {
-                    // 成功！
-                    String fullCookie = result.cookie;
-                    sendMsg(context, "§a§l登录成功！§r Cookie 已自动保存。");
-
-                    // 6. 自动保存到 Config
-                    // 注意：这需要 BotConfig 支持运行时写入
-                    updateConfig(fullCookie);
-                    return;
-                }
-
-            } catch (InterruptedException e) {
-                break;
-            }
-        }
-        sendMsg(context, "§c登录超时。");
-    }
-
-    private void sendMsg(CommandContext<CommandSourceStack> context, String msg) {
-        context.getSource().sendSuccess(() -> Component.literal(msg), false);
-    }
-
-    // 写入配置文件的辅助方法
-    private void updateConfig(String cookie) {
-        BotConfig.SERVER.neteaseCookie.set(cookie);
-        BotConfig.SERVER_SPEC.save(); // 强制保存到磁盘
+    private void sendMsg(CommandSourceStack source, String msg) {
+        source.sendSystemMessage(Component.literal(msg));
+        if (source.getEntity() != null) System.out.println(">>> [Bot] " + msg);
     }
 }
