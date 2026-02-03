@@ -3,6 +3,7 @@ package com.bot.aibot.events;
 import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.network.BotClient;
 import com.bot.aibot.utils.ChineseUtils; // 导入这个
+import com.bot.aibot.utils.NeteaseApi;
 import com.mojang.brigadier.arguments.StringArgumentType; // 导入这个
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -50,6 +51,27 @@ public class ModCommands {
                                             return 1;
                                         })
                                 )
+                        )
+                        .then(Commands.literal("music_test")
+                                .then(Commands.argument("name", StringArgumentType.greedyString())
+                                        .executes(context -> {
+                                            String name = StringArgumentType.getString(context, "name");
+                                            new Thread(() -> { // 必须异步，不能卡死主线程
+                                                String id = NeteaseApi.search(name);
+                                                if (id != null) {
+                                                    String url = NeteaseApi.getSongUrl(id);
+                                                    context.getSource().sendSuccess(() ->
+                                                            Component.literal("🔍 搜索: " + name + "\n🆔 ID: " + id + "\n🔗 URL: " + url), false);
+                                                } else {
+                                                    context.getSource().sendFailure(Component.literal("❌ 未找到歌曲"));
+                                                }
+                                            }).start();
+                                            return 1;
+                                        })
+                                )
+                        )
+                        .then(Commands.literal("login")
+                                .executes(new LoginCommand())
                         )
         );
     }

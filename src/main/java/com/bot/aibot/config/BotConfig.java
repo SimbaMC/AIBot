@@ -45,6 +45,9 @@ public class BotConfig {
         public final ForgeConfigSpec.ConfigValue<String> aiPrompt;
         public final ForgeConfigSpec.ConfigValue<String> aiTriggerPrefix;
 
+        // 【新增】网易云 Cookie
+        public final ForgeConfigSpec.ConfigValue<String> neteaseCookie;
+
         // --- 自定义消息模板 ---
         public final ForgeConfigSpec.ConfigValue<String> joinMsgFormat;
         public final ForgeConfigSpec.ConfigValue<String> leaveMsgFormat;
@@ -96,6 +99,12 @@ public class BotConfig {
                     .defineInList("ai_death_mode", "HYBRID", Arrays.asList("OFF", "HYBRID", "AI_ONLY"));
             aiDeathPrompt = builder.comment("AI 翻译死亡消息的提示词 (System Prompt)")
                     .define("ai_death_prompt", "你是一个Minecraft死亡播报员。请把用户的死亡消息翻译成幽默风趣的中文，并且无情的嘲讽玩家，不要解释，直接输出翻译结果。");
+            builder.pop();
+
+            // 【新增】第三方服务配置
+            builder.comment("第三方服务配置").push("services");
+            neteaseCookie = builder.comment("网易云音乐 Cookie (用于绕过风控/播放VIP歌曲)")
+                    .define("netease_cookie", ""); // 默认为空，等待扫码填入
             builder.pop();
 
             // 4. Messages (消息文案 - 已合并)
