@@ -86,7 +86,7 @@ public class NeteaseApi {
 
     public static LoginResult checkLoginStatus(String key) {
         try {
-            // Mod 用的是 .../client/login
+
             String url = "https://music.163.com/api/login/qrcode/client/login";
             String formData = "key=" + key + "&type=1";
 
@@ -115,7 +115,6 @@ public class NeteaseApi {
                 .uri(URI.create(url))
                 .header("User-Agent", USER_AGENT)
                 .header("Referer", "http://music.163.com")
-                // .header("Host", "music.163.com")  <-- 【删掉了这行】Java 会自动填，手动填会报错
                 .header("Accept", "*/*")
                 .header("Accept-Language", "zh-CN,zh;q=0.8,gl;q=0.6,zh-TW;q=0.4")
                 .header("Content-Type", "application/x-www-form-urlencoded");

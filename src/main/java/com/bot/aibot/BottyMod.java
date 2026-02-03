@@ -35,6 +35,8 @@ public class BottyMod {
 
         // 【新增】注册成就事件监听器
         MinecraftForge.EVENT_BUS.register(new AdvancementEvents());
+        // 注册网络包
+        com.bot.aibot.network.PacketHandler.register();
     }
 
     @SubscribeEvent

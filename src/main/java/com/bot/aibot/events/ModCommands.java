@@ -52,24 +52,11 @@ public class ModCommands {
                                         })
                                 )
                         )
-                        .then(Commands.literal("music_test")
-                                .then(Commands.argument("name", StringArgumentType.greedyString())
-                                        .executes(context -> {
-                                            String name = StringArgumentType.getString(context, "name");
-                                            new Thread(() -> { // 必须异步，不能卡死主线程
-                                                String id = NeteaseApi.search(name);
-                                                if (id != null) {
-                                                    String url = NeteaseApi.getSongUrl(id);
-                                                    context.getSource().sendSuccess(() ->
-                                                            Component.literal("🔍 搜索: " + name + "\n🆔 ID: " + id + "\n🔗 URL: " + url), false);
-                                                } else {
-                                                    context.getSource().sendFailure(Component.literal("❌ 未找到歌曲"));
-                                                }
-                                            }).start();
-                                            return 1;
-                                        })
-                                )
-                        )
+                        .then(Commands.literal("play")
+                                .then(Commands.argument("keyword", StringArgumentType.greedyString())
+                                        .executes(new PlayCommand()))) // 使用新写的 PlayCommand 类
+
+
                         .then(Commands.literal("login")
                                 .executes(new LoginCommand())
                         )
