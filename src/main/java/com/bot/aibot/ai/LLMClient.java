@@ -4,12 +4,16 @@ import com.bot.aibot.BottyMod;
 import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.events.MinecraftEvents;
 import com.bot.aibot.network.BotClient;
+import com.bot.aibot.network.PacketHandler;
+import com.bot.aibot.network.packet.S2CPlayMusicPacket;
 import com.bot.aibot.utils.ChineseUtils;
+import com.bot.aibot.utils.NeteaseApi;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.network.PacketDistributor;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -37,7 +41,10 @@ public class LLMClient {
         // 动态拼接功能指令：强制 AI 补全歌手名以提高搜索精度
         String systemPrompt = basePrompt +
                 "\n\n[核心功能指令]：" +
-                "\n- 如果玩家想点歌，请在回复末尾添加 'PLAY: 歌曲关键词'（关键词可以是歌名，也可以是歌手+歌名，由你判断如何搜索最准）。" +
+                "\n. 【核心】请优化搜索词！如果玩家说中文译名，请优先转换为原语种名称，玩家也可能说的是一个网络热梗，请先思考后再返回歌曲名。" +
+                "\n. 如果玩家只提供了歌词或模糊信息，请根据你的知识库将其转换为 '歌手 - 歌名' 格式，以提高网易云搜索精度。" +
+                "\n- 如果玩家想点歌，请在回复末尾添加 'PLAY: 歌曲名'。" +
+                "\n- 如果玩家想点歌且明确提到“所有人”、“全服”、“广播”等，请在末尾加上 'BROADCAST: 歌曲名'。" +
                 "\n- 如果玩家想停止播放、太吵了、换一首或不想听了，请在回复末尾添加 'STOP: TRUE'。" +
                 "\n- 严禁在 PLAY: 或 STOP: 后添加任何引号、括号或书名号。" +
                 "\n- 保持你的个性化语气，指令行必须独立存在或位于回复最后。";
@@ -53,33 +60,32 @@ public class LLMClient {
                 handleStopMusic(player);
             }
 
-            // 解析逻辑升级：处理 AI 不换行或带干扰符的情况
+            // 解析逻辑：同时处理 PLAY: 和 BROADCAST:
             String[] lines = aiReply.split("\n");
             for (String line : lines) {
                 String trimmedLine = line.trim();
-                if (trimmedLine.contains("PLAY:")) {
-                    // 1. 定位指令起始位置并截取关键词
-                    int playIndex = trimmedLine.indexOf("PLAY:");
-                    String rawKeyword = trimmedLine.substring(playIndex + 5).trim();
 
-                    // 2. 暴力清洗搜索词：去掉所有干扰 API 搜索的符号
-                    String keyword = rawKeyword.replace("\"", "").replace("'", "")
-                            .replace("《", "").replace("》", "")
-                            .replace("“", "").replace("”", "").trim();
-
-                    System.out.println(">>> [LLM DEBUG] 命中点歌指令，提取搜索词: [" + keyword + "]");
-
+                // 识别广播点歌
+                if (trimmedLine.contains("BROADCAST:")) {
+                    String keyword = extractAndClean(trimmedLine, "BROADCAST:");
+                    System.out.println(">>> [LLM DEBUG] 触发广播点歌: [" + keyword + "]");
                     if (!keyword.isEmpty()) {
-                        handleAiMusic(player, keyword);
+                        handleAiMusic(player, keyword, true); // true 代表全服广播
+                    }
+                }
+                // 识别普通点歌
+                else if (trimmedLine.contains("PLAY:")) {
+                    String keyword = extractAndClean(trimmedLine, "PLAY:");
+                    System.out.println(">>> [LLM DEBUG] 触发私享点歌: [" + keyword + "]");
+                    if (!keyword.isEmpty()) {
+                        handleAiMusic(player, keyword, false); // false 代表仅个人听
                     }
                 }
             }
 
-            // 过滤聊天显示：移除所有包含 PLAY: 的行，防止指令泄露给玩家
-            // 1. 先把每一行中 PLAY: 或 STOP: 之后的内容（包括标志位本身）全部切掉
-            String cleanReply = aiReply.replaceAll("(PLAY:|STOP:).*", "").trim();
+            // 2. 过滤聊天显示：将所有指令关键字及其后面的内容全部切掉
+            String cleanReply = aiReply.replaceAll("(PLAY:|STOP:|BROADCAST:).*", "").trim();
 
-            // 2. 如果切完之后还有内容，才发送给玩家
             if (!cleanReply.isEmpty()) {
                 replyToPlayer(player, cleanReply);
             }
@@ -88,32 +94,44 @@ public class LLMClient {
             sendErrorToPlayer(player, errorMsg);
         });
     }
+    /**
+     * 提取并清洗关键词的工具方法
+     */
+    private static String extractAndClean(String line, String prefix) {
+        int index = line.indexOf(prefix);
+        String raw = line.substring(index + prefix.length()).trim();
+        return raw.replace("\"", "").replace("'", "")
+                .replace("《", "").replace("》", "")
+                .replace("“", "").replace("”", "").trim();
+    }
 
     /**
-     * 异步处理音乐搜索与发送
+     * 异步点歌逻辑
+     * @param isGlobal 是否为全服广播
      */
-    private static void handleAiMusic(ServerPlayer player, String keyword) {
+    private static void handleAiMusic(ServerPlayer player, String keyword, boolean isGlobal) {
         CompletableFuture.runAsync(() -> {
             try {
-                System.out.println(">>> [Music Debug] 开始搜索关键词: [" + keyword + "]");
-
-                String songId = com.bot.aibot.utils.NeteaseApi.search(keyword);
+                System.out.println(">>> [Music Debug] 搜索: [" + keyword + "], 模式: " + (isGlobal ? "全服" : "私享"));
+                String songId = NeteaseApi.search(keyword);
                 if (songId != null) {
-                    System.out.println(">>> [Music Debug] 搜索成功，歌曲 ID: " + songId);
-                    String url = com.bot.aibot.utils.NeteaseApi.getSongUrl(songId);
+                    String url = NeteaseApi.getSongUrl(songId);
                     if (url != null) {
-                        System.out.println(">>> [Music Debug] 获取播放链接成功，发送数据包...");
-                        com.bot.aibot.network.PacketHandler.sendToPlayer(
-                                new com.bot.aibot.network.packet.S2CPlayMusicPacket(url, keyword), player);
-                    } else {
-                        System.out.println(">>> [Music Debug] 失败：无法获取播放链接 (可能受版权限制)");
+                        S2CPlayMusicPacket packet = new S2CPlayMusicPacket(url, keyword);
+                        if (isGlobal) {
+                            // 全服广播逻辑 (对应 /bot play all)
+                            PacketHandler.INSTANCE.send(PacketDistributor.ALL.noArg(), packet);
+                            Component msg = Component.literal("§6▶️ [全服广播] §f正在播放: §a" + keyword);
+                            BottyMod.serverInstance.getPlayerList().getPlayers().forEach(p -> p.sendSystemMessage(msg));
+                        } else {
+                            // 私享逻辑 (对应 /bot play)
+                            PacketHandler.sendToPlayer(packet, player);
+                            player.sendSystemMessage(Component.literal("§b▶️ [私享] §f正在为您播放: §a" + keyword + " §7(原版 BGM 已暂停)"));
+                        }
                     }
-                } else {
-                    System.out.println(">>> [Music Debug] 失败：网易云搜索无结果");
                 }
             } catch (Exception e) {
-                System.err.println(">>> [Music Debug] 播放逻辑发生异常: " + e.getMessage());
-                e.printStackTrace();
+                System.err.println("AI 点歌执行失败: " + e.getMessage());
             }
         });
     }
