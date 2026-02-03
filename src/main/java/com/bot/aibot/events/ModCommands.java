@@ -2,6 +2,8 @@ package com.bot.aibot.events;
 
 import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.network.BotClient;
+import com.bot.aibot.network.PacketHandler;
+import com.bot.aibot.network.packet.S2CMusicControlPacket;
 import com.bot.aibot.utils.ChineseUtils; // 导入这个
 import com.bot.aibot.utils.NeteaseApi;
 import com.mojang.brigadier.arguments.StringArgumentType; // 导入这个
@@ -53,8 +55,26 @@ public class ModCommands {
                                 )
                         )
                         .then(Commands.literal("play")
+                                // 分支 A: /bot play all <keyword> -> 强制广播
+                                .then(Commands.literal("all")
+                                        .then(Commands.argument("keyword", StringArgumentType.greedyString())
+                                                .executes(new PlayCommand(true)))) // 需要给 PlayCommand 加个构造函数
+                                // 分支 B: /bot play <keyword> -> 走原有的自动判断逻辑
                                 .then(Commands.argument("keyword", StringArgumentType.greedyString())
-                                        .executes(new PlayCommand()))) // 使用新写的 PlayCommand 类
+                                        .executes(new PlayCommand(false))))
+
+                        .then(Commands.literal("stop")
+                                .executes(context -> {
+                                    PacketHandler.sendToPlayer(new S2CMusicControlPacket(0), context.getSource().getPlayerOrException());
+                                    return 1;
+                                })
+                        )
+                        .then(Commands.literal("pause")
+                                .executes(context -> {
+                                    PacketHandler.sendToPlayer(new S2CMusicControlPacket(1), context.getSource().getPlayerOrException());
+                                    return 1;
+                                })
+                        )
 
 
                         .then(Commands.literal("login")

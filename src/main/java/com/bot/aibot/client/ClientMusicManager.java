@@ -23,11 +23,29 @@ public class ClientMusicManager {
 
     public static void play(String url, String name) {
         stop(); // 切换歌曲时先彻底停止老歌
+
+        Minecraft mc = Minecraft.getInstance();
+        // --- [新增] UI 显示: 模仿原版唱片机，仅在开始时显示几秒钟 ---
+        if (mc.player != null) {
+            mc.player.displayClientMessage(
+                    Component.literal("§b♪ §f正在播放: §a" + name + " §b♪"),
+                    true // overlay = true 会将其显示在 Action Bar 位置
+            );
+        }
+
+        if (mc.getSoundManager() != null) {
+            // 初始播放时立刻停止一次，防止重叠
+            mc.getSoundManager().stop(null, SoundSource.MUSIC);
+            mc.getSoundManager().stop(null, SoundSource.RECORDS);
+        }
+
         isPlaying = true;
         isPaused = false;
         currentMusicName = name;
 
         musicThread = new Thread(() -> {
+            long lastSuppressTime = 0; // 用于计时持续压制
+
             try (BufferedInputStream in = new BufferedInputStream(new URL(url).openStream())) {
                 Bitstream bitstream = new Bitstream(in);
                 Decoder decoder = new Decoder();
@@ -42,13 +60,27 @@ public class ClientMusicManager {
                 line.start();
 
                 while (isPlaying && header != null) {
+                    // --- 核心修改：持续压制逻辑 ---
+                    long currentTime = System.currentTimeMillis();
+                    if (currentTime - lastSuppressTime > 1000) { // 每 1000 毫秒执行一次
+                        Minecraft client = Minecraft.getInstance();
+                        if (client.getSoundManager() != null) {
+                            // 持续停止 MUSIC 和 RECORDS 频道，确保唱片机也被拦截
+                            client.getSoundManager().stop(null, SoundSource.MUSIC);
+                            client.getSoundManager().stop(null, SoundSource.RECORDS);
+                        }
+
+                        lastSuppressTime = currentTime;
+                    }
+                    // ----------------------------
+
                     // --- 暂停逻辑 ---
                     if (isPaused) {
-                        line.stop(); // 停止输出，保持硬件缓冲区
+                        line.stop();
                         while (isPaused && isPlaying) {
-                            Thread.sleep(100); // 线程阻塞，等待恢复
+                            Thread.sleep(100);
                         }
-                        if (isPlaying) line.start(); // 恢复输出
+                        if (isPlaying) line.start();
                     }
                     // ----------------
 
@@ -77,7 +109,6 @@ public class ClientMusicManager {
         musicThread.start();
     }
 
-    // 暂停/取消暂停 切换
     public static void togglePause() {
         isPaused = !isPaused;
         String status = isPaused ? "§6已暂停" : "§a已恢复播放";
@@ -87,7 +118,6 @@ public class ClientMusicManager {
         }
     }
 
-    // 彻底停止
     public static void stop() {
         isPlaying = false;
         isPaused = false;
@@ -99,9 +129,11 @@ public class ClientMusicManager {
 
     private static void cleanup() {
         if (line != null) {
-            line.drain(); // 等待缓冲区播放完
-            line.stop();
-            line.close();
+            try {
+                // 如果是人为停止，不需要 drain 慢慢等缓冲区结束，直接 close
+                line.stop();
+                line.close();
+            } catch (Exception ignored) {}
             line = null;
         }
     }

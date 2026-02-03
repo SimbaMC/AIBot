@@ -24,7 +24,7 @@ public class LLMClient {
     private static final HttpClient client = HttpClient.newHttpClient();
 
     /**
-     * 普通聊天功能
+     * 普通聊天功能（整合 AI 智能点歌）
      */
     public static void chat(ServerPlayer player, String userMessage) {
         if (!BotConfig.SERVER.enableAI.get()) return;
@@ -32,21 +32,100 @@ public class LLMClient {
         String playerName = player.getName().getString();
         player.sendSystemMessage(Component.literal("§7[Bot] 正在思考..."));
 
-        String systemPrompt = BotConfig.SERVER.aiPrompt.get();
+        String basePrompt = BotConfig.SERVER.aiPrompt.get();
+
+        // 动态拼接功能指令：强制 AI 补全歌手名以提高搜索精度
+        String systemPrompt = basePrompt +
+                "\n\n[核心功能指令]：" +
+                "\n- 如果玩家想点歌，请在回复末尾添加 'PLAY: 歌曲关键词'（关键词可以是歌名，也可以是歌手+歌名，由你判断如何搜索最准）。" +
+                "\n- 如果玩家想停止播放、太吵了、换一首或不想听了，请在回复末尾添加 'STOP: TRUE'。" +
+                "\n- 严禁在 PLAY: 或 STOP: 后添加任何引号、括号或书名号。" +
+                "\n- 保持你的个性化语气，指令行必须独立存在或位于回复最后。";
+
         String userContent = "玩家[" + playerName + "]说: " + userMessage;
 
-        // 调用统一的发送方法
         sendRequest(systemPrompt, userContent, 0.7, aiReply -> {
-            // 回调：私聊发给玩家
-            replyToPlayer(player, aiReply);
+            // --- DEBUG: 查看原始回复 ---
+            System.out.println(">>> [LLM DEBUG] 收到 AI 回复内容:\n" + aiReply);
+
+            if (aiReply.contains("STOP: TRUE")) {
+                System.out.println(">>> [LLM DEBUG] 触发停止逻辑");
+                handleStopMusic(player);
+            }
+
+            // 解析逻辑升级：处理 AI 不换行或带干扰符的情况
+            String[] lines = aiReply.split("\n");
+            for (String line : lines) {
+                String trimmedLine = line.trim();
+                if (trimmedLine.contains("PLAY:")) {
+                    // 1. 定位指令起始位置并截取关键词
+                    int playIndex = trimmedLine.indexOf("PLAY:");
+                    String rawKeyword = trimmedLine.substring(playIndex + 5).trim();
+
+                    // 2. 暴力清洗搜索词：去掉所有干扰 API 搜索的符号
+                    String keyword = rawKeyword.replace("\"", "").replace("'", "")
+                            .replace("《", "").replace("》", "")
+                            .replace("“", "").replace("”", "").trim();
+
+                    System.out.println(">>> [LLM DEBUG] 命中点歌指令，提取搜索词: [" + keyword + "]");
+
+                    if (!keyword.isEmpty()) {
+                        handleAiMusic(player, keyword);
+                    }
+                }
+            }
+
+            // 过滤聊天显示：移除所有包含 PLAY: 的行，防止指令泄露给玩家
+            // 1. 先把每一行中 PLAY: 或 STOP: 之后的内容（包括标志位本身）全部切掉
+            String cleanReply = aiReply.replaceAll("(PLAY:|STOP:).*", "").trim();
+
+            // 2. 如果切完之后还有内容，才发送给玩家
+            if (!cleanReply.isEmpty()) {
+                replyToPlayer(player, cleanReply);
+            }
+
         }, errorMsg -> {
-            // 错误回调
             sendErrorToPlayer(player, errorMsg);
         });
     }
 
     /**
-     * 死亡播报翻译功能
+     * 异步处理音乐搜索与发送
+     */
+    private static void handleAiMusic(ServerPlayer player, String keyword) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                System.out.println(">>> [Music Debug] 开始搜索关键词: [" + keyword + "]");
+
+                String songId = com.bot.aibot.utils.NeteaseApi.search(keyword);
+                if (songId != null) {
+                    System.out.println(">>> [Music Debug] 搜索成功，歌曲 ID: " + songId);
+                    String url = com.bot.aibot.utils.NeteaseApi.getSongUrl(songId);
+                    if (url != null) {
+                        System.out.println(">>> [Music Debug] 获取播放链接成功，发送数据包...");
+                        com.bot.aibot.network.PacketHandler.sendToPlayer(
+                                new com.bot.aibot.network.packet.S2CPlayMusicPacket(url, keyword), player);
+                    } else {
+                        System.out.println(">>> [Music Debug] 失败：无法获取播放链接 (可能受版权限制)");
+                    }
+                } else {
+                    System.out.println(">>> [Music Debug] 失败：网易云搜索无结果");
+                }
+            } catch (Exception e) {
+                System.err.println(">>> [Music Debug] 播放逻辑发生异常: " + e.getMessage());
+                e.printStackTrace();
+            }
+        });
+    }
+
+    private static void handleStopMusic(ServerPlayer player) {
+        // 复用你提供的 S2CMusicControlPacket，action 为 0 代表 Stop
+        com.bot.aibot.network.PacketHandler.sendToPlayer(
+                new com.bot.aibot.network.packet.S2CMusicControlPacket(0), player);
+    }
+
+    /**
+     * 死亡播报翻译功能 (保持逻辑独立，不受点歌指令干扰)
      */
     public static void translateDeath(ServerPlayer player, String abstractKey) {
         String mode = BotConfig.SERVER.aiDeathMode.get();
@@ -55,44 +134,25 @@ public class LLMClient {
         String systemPrompt = BotConfig.SERVER.aiDeathPrompt.get();
         String playerName = player.getName().getString();
 
-        // 【核心修改】Prompt 升级
-        // 明确告诉 AI 保持格式
         String promptWithContext = systemPrompt +
                 "\n\n[重要指令]：\n" +
                 "1. 原始消息中包含了 '%s'，这代表玩家的名字。\n" +
                 "2. 请在你的翻译结果中**保留这个 '%s'**，放在合适的位置。\n" +
-                "3. 你的任务是翻译死法并进行嘲讽，但不要把 '%s' 替换成具体名字，也不要弄丢它。\n" +
-                "4. 只要输出翻译后的句子，不要其他废话。";
+                "3. 只要输出翻译后的句子，不要其他废话。";
 
-        // 调用统一发送逻辑 (传入的是 abstractKey, 如 "%s was slain by zombie")
         sendRequest(promptWithContext, abstractKey, 0.8, translatedTemplate -> {
-
-            // 回调逻辑：
-
-            // 1. 存入缓存 (存模板: "%s was slain..." -> "%s 被僵尸干碎了...")
             ChineseUtils.learn(abstractKey, translatedTemplate);
-
-            // 2. 还原回具体消息用于发送
-            // 将模板里的 %s 变回 Dev
             String realMsg = translatedTemplate.replace("%s", playerName);
-
-            // 3. 格式化并广播
             String template = BotConfig.SERVER.deathMsgFormat.get();
             String finalMsg = MinecraftEvents.formatMsg(template, playerName, realMsg);
             BotClient.getInstance().sendMessageToQQ(finalMsg);
-
         }, errorMsg -> {
             System.out.println(">>> [Bot AI] 死亡翻译失败: " + errorMsg);
         });
     }
 
     /**
-     * 【重构优化】统一的 HTTP 请求发送逻辑
-     * @param sysPrompt 系统提示词
-     * @param userMsg 用户输入
-     * @param temperature 温度参数
-     * @param onSuccess 成功时的回调 (Lambda)
-     * @param onError 失败时的回调 (Lambda)
+     * 统一的 HTTP 请求逻辑
      */
     private static void sendRequest(String sysPrompt, String userMsg, double temperature, Consumer<String> onSuccess, Consumer<String> onError) {
         String apiUrl = BotConfig.SERVER.aiApiUrl.get();
@@ -133,8 +193,6 @@ public class LLMClient {
                             .get(0).getAsJsonObject()
                             .getAsJsonObject("message")
                             .get("content").getAsString();
-
-                    // 成功回调
                     onSuccess.accept(content);
                 } else {
                     onError.accept("HTTP " + response.statusCode());
