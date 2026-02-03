@@ -29,9 +29,9 @@ public class ChineseUtils {
     // 【新增】专门存储 AI 学习到的死亡消息缓存
     private static final Map<String, String> AI_CACHE = new ConcurrentHashMap<>();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    // 自定义缓存文件的路径: run/config/bottymod/custom_death.json
+    // 自定义缓存文件的路径: run/config/aibot/custom_death.json
     private static final Path CACHE_FILE_PATH = FMLPaths.CONFIGDIR.get()
-            .resolve("bottymod").resolve("custom_death.json");
+            .resolve("aibot").resolve("custom_death.json");
 
     public static void load() {
         TRANSLATIONS.clear(); // 重载前清空，防止重复
@@ -48,7 +48,7 @@ public class ChineseUtils {
             String modId = mod.getModId();
 
             // ⚠️ 关键修改：只跳过 Bot 自己（防止死循环或读取混乱），不再跳过 "minecraft"！
-            if (!"bottymod".equals(modId)) {
+            if (!"aibot".equals(modId)) {
                 count += loadModLangForgeWay(mod);
             }
         }
@@ -156,7 +156,8 @@ public class ChineseUtils {
                         boolean isUseful = key.startsWith("death.") ||
                                 key.startsWith("item.") ||
                                 key.startsWith("block.") ||
-                                key.startsWith("entity.");
+                                key.startsWith("entity.")||
+                                key.startsWith("advancements.");
 
                         if (isUseful) {
                             TRANSLATIONS.put(key, entry.getValue().getAsString());
@@ -178,7 +179,7 @@ public class ChineseUtils {
     // 加载你自己写的补丁文件 (vanilla_zh.json)，优先级最高，覆盖前面的
     private static int loadLocalPatch() {
         int loaded = 0;
-        try (InputStream is = ChineseUtils.class.getResourceAsStream("/assets/bottymod/lang/vanilla_zh.json")) {
+        try (InputStream is = ChineseUtils.class.getResourceAsStream("/assets/aibot/lang/vanilla_zh.json")) {
             if (is != null) {
                 try (InputStreamReader reader = new InputStreamReader(is, StandardCharsets.UTF_8)) {
                     JsonObject json = GSON.fromJson(reader, JsonObject.class);

@@ -32,7 +32,7 @@ public class WSListener implements WebSocket.Listener {
         // 2. 向 QQ 群发送启动问候
         sendStartMessage(webSocket);
     }
-
+    //================================内存熔断防炸=========================================================================================================
     // 定义一个常量：最大允许 1MB 的消息 (足够存几十万字的作文了)
     private static final int MAX_BUFFER_SIZE = 1024 * 1024;
 
@@ -138,7 +138,7 @@ public class WSListener implements WebSocket.Listener {
             );
         }
     }
-
+    //=====================================服务器状态查询逻辑============================================================================
     private void handleStatusCommmand(long groupId) {
         if (BottyMod.serverInstance == null) {
             return;

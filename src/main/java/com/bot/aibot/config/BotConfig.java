@@ -136,7 +136,7 @@ public class BotConfig {
     public static void refresh() {
         try {
             // 1. 获取配置文件路径 (run/config/bottymod-common.toml)
-            Path path = FMLPaths.CONFIGDIR.get().resolve("bottymod-common.toml");
+            Path path = FMLPaths.CONFIGDIR.get().resolve("aibot-common.toml");
             System.out.println(">>> [Bot] 正在重载配置文件: " + path.toString());
 
             // 2. 使用 NightConfig 强制读取硬盘文件
