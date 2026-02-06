@@ -28,23 +28,42 @@ public class MusicPlayerScreen extends Screen {
     private enum ScreenState { PLAYER, LOGIN_PROMPT, LOGIN_QR }
     private ScreenState currentState = ScreenState.LOGIN_PROMPT;
 
+    // === 播放模式 ===
+    private enum PlaybackMode {
+        LIST_LOOP("🔁", "列表循环"),
+        SINGLE_LOOP("🔂", "单曲循环"),
+        RANDOM("🔀", "随机播放");
+
+        final String icon;
+        final String name;
+        PlaybackMode(String icon, String name) { this.icon = icon; this.name = name; }
+    }
+
     // === 静态缓存 ===
     private static List<Long> CACHED_ALL_IDS = null;
     private static List<SongInfo> CACHED_CURRENT_LIST = null;
     private static int CACHED_PAGE = 0;
     private static Tab CACHED_TAB = Tab.SEARCH;
     private static boolean CACHED_BROADCAST_MODE = false;
-    // 【修复 Bug 1】删除了 HAS_CHECKED_LOGIN 静态变量，防止状态死锁
+    private static PlaybackMode CACHED_PLAYBACK_MODE = PlaybackMode.LIST_LOOP;
+    private static SongInfo CACHED_PLAYING_SONG = null;
+    private static long lastBroadcastTime = 0;
 
     private enum Tab { SEARCH, PLAYLIST }
     private Tab currentTab = Tab.SEARCH;
     private boolean isBroadcastMode = false;
+    private PlaybackMode currentPlaybackMode = PlaybackMode.LIST_LOOP;
 
     // 控件
     private EditBox searchBox;
     private SongListWidget songList;
-    private FlatButton btnSearch, btnLoadPlaylist, btnPrev, btnNext;
-    private FlatButton btnToggle, btnStop, btnMode, btnRandom; // 新增随机按钮
+    private FlatButton btnSearch, btnLoadPlaylist;
+
+    // 【修改】播放控制按钮组
+    private FlatButton btnPlayPrev, btnToggle, btnPlayNext, btnStop;
+    private FlatButton btnLoopMode, btnMode;
+    private FlatButton btnPagePrev, btnPageNext; // 改名区分翻页和切歌
+
     private FlatButton btnStartLogin, btnCancelLogin;
 
     // 登录变量
@@ -60,7 +79,6 @@ public class MusicPlayerScreen extends Screen {
     private final int PAGE_SIZE = 50;
     private Component statusText = Component.empty();
 
-    // 颜色
     private static final int COLOR_BG = 0xCC101010;
     private static final int COLOR_HEADER = 0xFF000000;
     private static final int COLOR_ACCENT = 0xFF2ECC71;
@@ -68,63 +86,102 @@ public class MusicPlayerScreen extends Screen {
     private static final int COLOR_TEXT_ACTIVE = 0xFFFFFFFF;
     private static final int COLOR_HOVER = 0x20FFFFFF;
 
-    public MusicPlayerScreen() {
-        super(Component.literal("AiBot Netease"));
-    }
+    public MusicPlayerScreen() { super(Component.literal("AiBot Netease")); }
 
     @Override
     protected void init() {
         this.leftPos = (this.width - WINDOW_WIDTH) / 2;
         this.topPos = (this.height - WINDOW_HEIGHT) / 2;
 
-        // 【修复 Bug 1】每次打开都重新检查登录状态
-        // 1. 先加载 Cookie
         NeteaseApi.loadCookies();
-        // 2. 简单检查 UID (如果已登录，这个检查是毫秒级的)
-        if (NeteaseApi.getMyUid() > 0) {
-            currentState = ScreenState.PLAYER;
-        } else {
-            currentState = ScreenState.LOGIN_PROMPT;
-        }
+        if (NeteaseApi.getMyUid() > 0) currentState = ScreenState.PLAYER;
+        else if (currentState != ScreenState.LOGIN_QR) currentState = ScreenState.LOGIN_PROMPT;
 
-        // 设置自动播放回调
-        ClientMusicManager.onTrackFinishedCallback = this::autoPlayNext;
+        // 回调只负责自动播放 (isAuto = true)
+        ClientMusicManager.onTrackFinishedCallback = () -> trySwitchSong(true, true);
 
         this.clearWidgets();
-        if (currentState == ScreenState.PLAYER) {
-            initPlayerInterface();
-        } else if (currentState == ScreenState.LOGIN_PROMPT) {
-            initLoginPromptInterface();
-        } else if (currentState == ScreenState.LOGIN_QR) {
-            initLoginQrInterface();
-        }
+        if (currentState == ScreenState.PLAYER) initPlayerInterface();
+        else if (currentState == ScreenState.LOGIN_PROMPT) initLoginPromptInterface();
+        else if (currentState == ScreenState.LOGIN_QR) initLoginQrInterface();
     }
 
-    // === 【新增】自动播放逻辑 ===
-    private void autoPlayNext() {
-        // 如果当前没有缓存列表，无法自动播放
+    // === 【核心逻辑】切歌控制 ===
+    // isNext: true=下一首, false=上一首
+    // isAuto: true=播放结束自动触发(受广播限制), false=手动点击(无视广播限制)
+    private void trySwitchSong(boolean isNext, boolean isAuto) {
+        // 1. 广播模式下，禁止自动切歌，但允许手动切歌
+        if (isBroadcastMode && isAuto) return;
+
         if (CACHED_CURRENT_LIST == null || CACHED_CURRENT_LIST.isEmpty()) return;
 
-        // 随机选择一首 (或者是顺序播放，这里用随机比较适合“听歌”场景)
-        // 既然用户有随机播放的需求，我们就默认随机下一首，增加趣味性
-        int nextIndex = new Random().nextInt(CACHED_CURRENT_LIST.size());
-        SongInfo nextSong = CACHED_CURRENT_LIST.get(nextIndex);
+        SongInfo nextSong = null;
 
-        System.out.println(">>> [AutoPlay] 自动播放下一首: " + nextSong.name);
+        // 简单处理：随机模式下，上一首/下一首都是随机
+        if (currentPlaybackMode == PlaybackMode.RANDOM) {
+            int rnd = new Random().nextInt(CACHED_CURRENT_LIST.size());
+            nextSong = CACHED_CURRENT_LIST.get(rnd);
+        } else {
+            // 列表循环 / 单曲循环
+            // 如果是手动切歌(isAuto=false)，即使是单曲循环模式，也应该切到下一首，而不是重播当前这首
+            // 如果是自动播放(isAuto=true) 且 单曲循环，则重播当前
+            if (isAuto && currentPlaybackMode == PlaybackMode.SINGLE_LOOP && CACHED_PLAYING_SONG != null) {
+                nextSong = CACHED_PLAYING_SONG;
+            } else {
+                // 找当前位置
+                int idx = -1;
+                if (CACHED_PLAYING_SONG != null) {
+                    for (int i = 0; i < CACHED_CURRENT_LIST.size(); i++) {
+                        if (CACHED_CURRENT_LIST.get(i).id.equals(CACHED_PLAYING_SONG.id)) {
+                            idx = i; break;
+                        }
+                    }
+                }
 
-        // 执行播放逻辑 (复用 playLogic)
-        // 注意：这里是在子线程回调的，playLogic 内部会处理线程安全，但为了保险，我们只调用逻辑部分
-        playSong(nextSong);
+                // 计算新索引
+                int size = CACHED_CURRENT_LIST.size();
+                int nextIdx;
+                if (isNext) {
+                    nextIdx = (idx + 1) % size;
+                } else {
+                    nextIdx = (idx - 1 + size) % size; // 保证正数
+                }
+                nextSong = CACHED_CURRENT_LIST.get(nextIdx);
+            }
+        }
+
+        if (nextSong != null) {
+            playSong(nextSong);
+        }
+    }
+    private void updateButtonStates() {
+        if (btnPlayPrev == null || btnPlayNext == null || btnLoopMode == null) return;
+
+        // 如果是广播模式：禁止切歌，禁止切循环模式（强制单次）
+        if (isBroadcastMode) {
+            btnPlayPrev.active = false;
+            btnPlayNext.active = false;
+            btnLoopMode.active = false;
+            // 可以在这里把 loopMode 临时显示为 "1" (单次)，但为了逻辑简单，置灰即可
+        } else {
+            // 私享模式：全部可用
+            btnPlayPrev.active = true;
+            btnPlayNext.active = true;
+            btnLoopMode.active = true;
+        }
     }
 
     private void initPlayerInterface() {
         int contentTop = topPos + 35;
 
+        // 恢复缓存
         if (CACHED_TAB != null) this.currentTab = CACHED_TAB;
         if (CACHED_ALL_IDS != null) this.allSongIdsCache = CACHED_ALL_IDS;
         this.currentPage = CACHED_PAGE;
         this.isBroadcastMode = CACHED_BROADCAST_MODE;
+        this.currentPlaybackMode = CACHED_PLAYBACK_MODE;
 
+        // 搜索区域
         this.searchBox = new EditBox(this.font, leftPos + 10, contentTop + 10, 200, 18, Component.literal("搜索"));
         this.searchBox.setBordered(false);
         this.searchBox.setTextColor(0xFFFFFF);
@@ -137,38 +194,76 @@ public class MusicPlayerScreen extends Screen {
         this.btnLoadPlaylist.visible = false;
         this.addRenderableWidget(this.btnLoadPlaylist);
 
-        // --- 底部控制栏 ---
-        int buttonsY = topPos + WINDOW_HEIGHT - 30;
+        // --- 底部控制栏布局 (Y=210) ---
+        int bY = topPos + WINDOW_HEIGHT - 30;
 
-        this.btnToggle = new FlatButton(leftPos + 10, buttonsY, 25, 20, "||", b -> PacketHandler.sendToServer(new C2SMusicActionPacket(1)));
+        // 1. 播放控制组 (左侧)
+        // |< (上一首)
+        this.btnPlayPrev = new FlatButton(leftPos + 10, bY, 20, 20, "|<", b -> trySwitchSong(false, false));
+        this.addRenderableWidget(this.btnPlayPrev);
+
+        // || (暂停/播放)
+        this.btnToggle = new FlatButton(leftPos + 34, bY, 24, 20, "||", b -> PacketHandler.sendToServer(new C2SMusicActionPacket(1)));
         this.addRenderableWidget(this.btnToggle);
 
-        this.btnStop = new FlatButton(leftPos + 40, buttonsY, 25, 20, "■", b -> PacketHandler.sendToServer(new C2SMusicActionPacket(0)));
+        // >| (下一首)
+        this.btnPlayNext = new FlatButton(leftPos + 62, bY, 20, 20, ">|", b -> trySwitchSong(true, false));
+        this.addRenderableWidget(this.btnPlayNext);
+
+        // ■ (停止)
+        this.btnStop = new FlatButton(leftPos + 86, bY, 20, 20, "■", b -> PacketHandler.sendToServer(new C2SMusicActionPacket(0)));
         this.addRenderableWidget(this.btnStop);
 
-        this.btnMode = new FlatButton(leftPos + 75, buttonsY, 60, 20, "🎧 私享", b -> {
+        // 2. 模式组 (中间)
+        // 循环模式
+        this.btnLoopMode = new FlatButton(leftPos + 115, bY, 25, 20, currentPlaybackMode.icon, b -> {
+            switch (currentPlaybackMode) {
+                case LIST_LOOP -> currentPlaybackMode = PlaybackMode.SINGLE_LOOP;
+                case SINGLE_LOOP -> currentPlaybackMode = PlaybackMode.RANDOM;
+                case RANDOM -> currentPlaybackMode = PlaybackMode.LIST_LOOP;
+            }
+            CACHED_PLAYBACK_MODE = currentPlaybackMode;
+            btnLoopMode.setMessage(Component.literal(currentPlaybackMode.icon));
+        });
+        this.addRenderableWidget(this.btnLoopMode);
+
+        // 私享/广播
+        this.btnMode = new FlatButton(leftPos + 145, bY, 50, 20, "", b -> {
+            // 1. 如果准备开启广播模式，检查冷却
+            if (!isBroadcastMode) {
+                long now = System.currentTimeMillis();
+                int cooldownSec = BotConfig.SERVER.broadcastCooldown.get();
+                long cooldownMs = cooldownSec * 1000L;
+
+                if (now - lastBroadcastTime < cooldownMs) {
+                    long remain = (cooldownMs - (now - lastBroadcastTime)) / 1000;
+                    statusText = Component.literal("§c冷却中: " + remain + "s");
+                    return; // 阻止切换
+                }
+            }
+
+            // 2. 切换状态
             isBroadcastMode = !isBroadcastMode;
             CACHED_BROADCAST_MODE = isBroadcastMode;
             updateModeButton();
+            updateButtonStates(); // 【关键】刷新按钮状态
         });
         updateModeButton();
         this.addRenderableWidget(this.btnMode);
 
-        // 【新增】随机播放按钮
-        this.btnRandom = new FlatButton(leftPos + 140, buttonsY, 40, 20, "🎲", b -> playRandomSong());
-        this.addRenderableWidget(this.btnRandom);
+        // 3. 翻页组 (右侧)
+        // < (上一页)
+        this.btnPagePrev = new FlatButton(leftPos + WINDOW_WIDTH - 60, bY, 25, 20, "<", b -> changePage(-1));
+        // > (下一页)
+        this.btnPageNext = new FlatButton(leftPos + WINDOW_WIDTH - 30, bY, 25, 20, ">", b -> changePage(1));
 
-        this.btnPrev = new FlatButton(leftPos + WINDOW_WIDTH - 90, buttonsY, 35, 20, "<", b -> changePage(-1));
-        this.btnNext = new FlatButton(leftPos + WINDOW_WIDTH - 50, buttonsY, 35, 20, ">", b -> changePage(1));
-        this.btnPrev.active = currentPage > 0;
-        if (allSongIdsCache != null) {
-            this.btnNext.active = (currentPage + 1) * PAGE_SIZE < allSongIdsCache.size();
-        } else {
-            this.btnNext.active = false;
-        }
-        this.addRenderableWidget(this.btnPrev);
-        this.addRenderableWidget(this.btnNext);
+        this.btnPagePrev.active = currentPage > 0;
+        this.btnPageNext.active = (allSongIdsCache != null) && ((currentPage + 1) * PAGE_SIZE < allSongIdsCache.size());
 
+        this.addRenderableWidget(this.btnPagePrev);
+        this.addRenderableWidget(this.btnPageNext);
+
+        // 列表
         int listY = contentTop + 40;
         int listH = WINDOW_HEIGHT - 35 - 40 - 65;
         this.songList = new SongListWidget(this.minecraft, WINDOW_WIDTH - 20, listH, listY);
@@ -179,32 +274,33 @@ public class MusicPlayerScreen extends Screen {
             this.songList.refreshList(CACHED_CURRENT_LIST);
         }
         updateTabVisibility();
+        updateButtonStates();
     }
 
-    // 【新增】随机播放一首当前列表的歌
-    private void playRandomSong() {
-        if (songList.children().isEmpty()) {
-            statusText = Component.literal("列表为空，无法随机");
-            return;
-        }
-        int index = new Random().nextInt(songList.children().size());
-        SongListWidget.SongEntry entry = songList.children().get(index);
-        // 调用条目的点击逻辑
-        entry.playLogic(entry.song);
-    }
-
-    // 【核心】统一播放逻辑 (供点击、随机、自动播放调用)
-    // 把它提取出来，方便复用
     private void playSong(SongInfo song) {
+        CACHED_PLAYING_SONG = song;
+        final boolean performBroadcast = isBroadcastMode;
+        // 2. 如果是广播模式：记录时间 -> 自动切回私享 -> 刷新UI
+        if (isBroadcastMode) {
+            lastBroadcastTime = System.currentTimeMillis();
+
+            isBroadcastMode = false;
+            CACHED_BROADCAST_MODE = false;
+
+            updateModeButton();
+            updateButtonStates(); // 恢复按钮可用
+
+            statusText = Component.literal("§e广播已发送，自动切回私享");
+        }
         String modeText = isBroadcastMode ? "§c[全服广播]" : "§a[私享模式]";
+
         new Thread(() -> {
             String url = NeteaseApi.getSongUrl(song.id);
             if (url == null) {
                 Minecraft.getInstance().execute(() -> Minecraft.getInstance().player.sendSystemMessage(Component.literal("§c播放失败: VIP/无版权")));
                 return;
             }
-            // 【修复 Bug 2】随机/自动播放也必须遵守当前的广播模式
-            if (isBroadcastMode) {
+            if (performBroadcast) {
                 PacketHandler.sendToServer(new C2SReportMusicPacket(url, song.name + " - " + song.artist, song.duration));
             } else {
                 Minecraft.getInstance().execute(() -> ClientMusicManager.play(url, song.name + " - " + song.artist, song.duration));
@@ -212,7 +308,7 @@ public class MusicPlayerScreen extends Screen {
         }).start();
     }
 
-    // ... (initLoginPromptInterface, initLoginQrInterface, startLoginProcess, stopLoginProcess 保持不变) ...
+    // ... (initLoginPromptInterface 等保持不变) ...
     private void initLoginPromptInterface() {
         this.btnStartLogin = new FlatButton(leftPos + (WINDOW_WIDTH - 120) / 2, topPos + (WINDOW_HEIGHT - 30) / 2, 120, 30, "扫码登录网易云", b -> {
             currentState = ScreenState.LOGIN_QR;
@@ -312,6 +408,7 @@ public class MusicPlayerScreen extends Screen {
             if (uid == 0) {
                 Minecraft.getInstance().execute(() -> {
                     currentState = ScreenState.LOGIN_PROMPT;
+                    if (currentState != ScreenState.LOGIN_QR) currentState = ScreenState.LOGIN_PROMPT;
                     init();
                 });
                 return;
@@ -342,15 +439,14 @@ public class MusicPlayerScreen extends Screen {
             Minecraft.getInstance().execute(() -> {
                 songList.refreshList(d);
                 CACHED_CURRENT_LIST = d;
-                btnPrev.active = currentPage > 0;
-                btnNext.active = e < allSongIdsCache.size();
+                btnPagePrev.active = currentPage > 0;
+                btnPageNext.active = e < allSongIdsCache.size();
                 songList.setScrollAmount(0);
                 statusText = Component.literal("页码: " + (currentPage + 1));
             });
         }).start();
     }
 
-    // ... (render, renderProgressBar, renderTab 保持不变) ...
     @Override
     public void render(GuiGraphics g, int mx, int my, float pt) {
         this.renderBackground(g);
@@ -367,7 +463,12 @@ public class MusicPlayerScreen extends Screen {
             renderQrLayer(g, mx, my, pt);
             super.render(g, mx, my, pt);
         }
+
+        if (currentState == ScreenState.PLAYER && btnLoopMode.isHovered()) {
+            g.renderTooltip(this.font, Component.literal(currentPlaybackMode.name), mx, my);
+        }
     }
+
     private void renderQrLayer(GuiGraphics g, int mx, int my, float pt) {
         g.drawCenteredString(this.font, loginStatusText, leftPos + WINDOW_WIDTH / 2, topPos + 45, 0xFFE0E0E0);
         if (qrCodeCache != null) {
@@ -516,9 +617,8 @@ public class MusicPlayerScreen extends Screen {
                 return false;
             }
 
-            // 公开这个方法，供随机播放调用
             public void playLogic(SongInfo song) {
-                playSong(song); // 委托给外部类的方法
+                playSong(song);
             }
             @Override public Component getNarration() { return Component.literal(song.name); }
         }
