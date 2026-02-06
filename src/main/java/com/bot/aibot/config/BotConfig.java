@@ -54,7 +54,7 @@ public class BotConfig {
         public final ForgeConfigSpec.ConfigValue<String> aiDeathMode;
         public final ForgeConfigSpec.ConfigValue<String> aiDeathPrompt;
 
-        // 移除了 neteaseCookie！因为它不应该在服务端！
+        public final ForgeConfigSpec.IntValue broadcastCooldown;
 
         public final ForgeConfigSpec.ConfigValue<String> joinMsgFormat;
         public final ForgeConfigSpec.ConfigValue<String> leaveMsgFormat;
@@ -76,6 +76,9 @@ public class BotConfig {
             enableDeath = builder.define("enable_death", true);
             enableAdvancement = builder.define("enable_advancement", true);
             mcPrefix = builder.comment("服务器前缀").define("mc_prefix", "Server");
+            broadcastCooldown = builder
+                    .comment("全服广播功能的冷却时间 (秒)，防止刷屏")
+                    .defineInRange("broadcast_cooldown", 600, 0, 3600); // 默认600秒
             builder.pop();
 
             builder.comment("AI 配置").push("ai_features");
@@ -97,6 +100,7 @@ public class BotConfig {
             chatMsgFormat = builder.define("chat_format", "[%prefix%] %player%: %msg%");
             startMsgFormat = builder.define("start_msg", "[%prefix%] Bot 已连接！");
             builder.pop();
+
         }
     }
 
@@ -121,7 +125,6 @@ public class BotConfig {
      */
     public static void refresh() {
         try {
-            // 只重载服务端配置，客户端配置通常不需要热重载
             Path path = FMLPaths.CONFIGDIR.get().resolve("aibot-common.toml");
             CommentedFileConfig configData = CommentedFileConfig.builder(path).sync().build();
             configData.load();

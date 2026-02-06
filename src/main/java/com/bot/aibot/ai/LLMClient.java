@@ -120,12 +120,6 @@ public class LLMClient {
         // 2. 发送给玩家客户端
         PacketHandler.sendToPlayer(packet, player);
 
-        // 3. 给个反馈
-        if (isGlobal) {
-            player.sendSystemMessage(Component.literal("§a[Bot] AI 已为您发起全服点歌: §e" + keyword));
-        } else {
-            player.sendSystemMessage(Component.literal("§b[Bot] AI 已为您发起私享点歌: §e" + keyword));
-        }
     }
 
     private static void handleStopMusic(ServerPlayer player) {

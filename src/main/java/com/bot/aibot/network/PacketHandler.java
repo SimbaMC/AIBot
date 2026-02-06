@@ -69,7 +69,6 @@ public class PacketHandler {
         INSTANCE.send(PacketDistributor.PLAYER.with(() -> player), message);
     }
 
-
     public static <MSG> void sendToServer(MSG message) {
         INSTANCE.sendToServer(message);
     }
