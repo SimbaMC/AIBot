@@ -31,11 +31,34 @@ public class PacketHandler {
                 .consumerMainThread(S2CMusicControlPacket::handle)
                 .add();
 
-        // 【新增】注册新包
-        INSTANCE.registerMessage(id++, S2CRequestSearchPacket.class, S2CRequestSearchPacket::encode, S2CRequestSearchPacket::new, S2CRequestSearchPacket::handle);
-        INSTANCE.registerMessage(id++, C2SReportMusicPacket.class, C2SReportMusicPacket::encode, C2SReportMusicPacket::new, C2SReportMusicPacket::handle);
+        // 【新增】注册登录请求包 (服务端 -> 客户端)
+        // 注册了这一行，IDE 就不会报 "构造函数未使用" 的警告了
+        INSTANCE.messageBuilder(S2CRequestLoginPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .decoder(S2CRequestLoginPacket::new)  // <--- 这里调用了那个构造函数
+                .encoder(S2CRequestLoginPacket::encode)
+                .consumerMainThread(S2CRequestLoginPacket::handle)
+                .add();
 
-        INSTANCE.registerMessage(id++, S2CStopLoginPacket.class, S2CStopLoginPacket::encode, S2CStopLoginPacket::new, S2CStopLoginPacket::handle);
+        // 【新增】注册停止登录包 (服务端 -> 客户端)
+        INSTANCE.messageBuilder(S2CStopLoginPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .decoder(S2CStopLoginPacket::new)
+                .encoder(S2CStopLoginPacket::encode)
+                .consumerMainThread(S2CStopLoginPacket::handle)
+                .add();
+
+        // 【新增】还有之前说的搜歌请求包 (服务端 -> 客户端)
+        INSTANCE.messageBuilder(S2CRequestSearchPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .decoder(S2CRequestSearchPacket::new)
+                .encoder(S2CRequestSearchPacket::encode)
+                .consumerMainThread(S2CRequestSearchPacket::handle)
+                .add();
+
+        // 【新增】还有搜歌结果上报包 (客户端 -> 服务端)
+        INSTANCE.messageBuilder(C2SReportMusicPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .decoder(C2SReportMusicPacket::new)
+                .encoder(C2SReportMusicPacket::encode)
+                .consumerMainThread(C2SReportMusicPacket::handle)
+                .add();
     }
 
     // --- 新增以下方法 ---
