@@ -98,8 +98,15 @@ public class ClientMusicManager {
                     bitstream.closeFrame();
                     header = bitstream.readFrame();
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
+            } catch (Throwable e) { // 【修改】从 Exception 改为 Throwable
+                System.err.println(">>> [Music Error] 播放线程崩溃: " + e.getMessage());
+                e.printStackTrace(); // 这样你就能在日志里看到 NoClassDefFoundError 了
+
+                // 可选：给玩家发个消息
+                if (Minecraft.getInstance().player != null) {
+                    Minecraft.getInstance().player.displayClientMessage(
+                            Component.literal("§c[Bot] 播放失败: 缺少依赖库或解码错误"), false);
+                }
             } finally {
                 cleanup();
             }

@@ -3,6 +3,7 @@ plugins {
     id 'idea'
     id 'maven-publish'
     id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
 version = mod_version
@@ -50,15 +51,38 @@ repositories {
         content { includeGroup "curse.maven" }
     }
 }
+configurations {
+    shade
+    implementation.extendsFrom shade
+}
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
 
-    // 使用 implementation + jarJar 是最稳妥的组合
-    implementation 'javazoom:jlayer:1.0.1'
-    minecraftLibrary 'javazoom:jlayer:1.0.1'
+
+    shade 'javazoom:jlayer:1.0.1'
+    //minecraftLibrary 'javazoom:jlayer:1.0.1'
 
     runtimeOnly fg.deobf("curse.maven:the-twilight-forest-227639:4714498")
+}
+reobf {
+    shadowJar {} // 【关键】这行代码会生成 reobfShadowJar 任务
+}
+tasks.named('shadowJar', com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar).configure {
+    archiveClassifier = '' // 覆盖默认的 jar，直接生成可用的 jar
+
+    // 包含所有 implementation 依赖
+    configurations = [project.configurations.shade]
+
+    // 【强烈建议】重定位包名，防止和其他也用了 jlayer 的模组冲突
+    relocate 'javazoom.jl', 'com.bot.aibot.shadow.javazoom.jl'
+
+    // 排除不必要的文件
+    exclude 'META-INF/maven/**'
+    exclude 'META-INF/LICENSE*'
+
+    // 必须合并 Service 文件（如果有的话）
+    mergeServiceFiles()
 }
 
 tasks.named('processResources', ProcessResources).configure {
@@ -76,6 +100,7 @@ tasks.named('processResources', ProcessResources).configure {
 }
 
 tasks.named('jar', Jar).configure {
+    archiveClassifier = 'slim'
     manifest {
         attributes([
                 'Specification-Title'     : mod_id,
@@ -89,6 +114,7 @@ tasks.named('jar', Jar).configure {
     }
     finalizedBy 'reobfJar'
 }
+tasks.build.dependsOn tasks.shadowJar
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
