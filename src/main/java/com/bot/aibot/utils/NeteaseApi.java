@@ -1,6 +1,7 @@
 package com.bot.aibot.utils;
 
 import com.bot.aibot.config.BotConfig;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -15,10 +16,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class NeteaseApi {
 
@@ -267,7 +265,144 @@ public class NeteaseApi {
         HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
         return resp.body();
     }
+    // 1. 获取当前登录用户的 UID
+    public static long getMyUid() {
+        try {
+            // 这个接口不需要加密，直接通过 Cookie 里的身份获取
+            String jsonResp = requestRaw("https://music.163.com/api/nuser/account/get", null);
+            JsonObject root = JsonParser.parseString(jsonResp).getAsJsonObject();
+            if (root.has("account") && !root.get("account").isJsonNull()) {
+                return root.getAsJsonObject("account").get("id").getAsLong();
+            }
+        } catch (Exception e) {
+            System.err.println(">>> [API] 获取 UID 失败: " + e.getMessage());
+        }
+        return 0;
+    }
+    // 2. 获取用户的歌单列表 (返回歌单 JSON 数组)
+    public static JsonArray getUserPlaylists(long uid) {
+        try {
+            Map<String, Object> data = new HashMap<>();
+            data.put("uid", uid);
+            data.put("limit", 30); // 只拿前30个歌单
+            data.put("offset", 0);
+            data.put("csrf_token", "");
 
+            String jsonResp = request("https://music.163.com/weapi/user/playlist", data);
+            JsonObject root = JsonParser.parseString(jsonResp).getAsJsonObject();
+            if (root.get("code").getAsInt() == 200) {
+                return root.getAsJsonArray("playlist");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+    // 【新增】搜索并返回歌曲列表（用于 GUI 显示）
+    public static List<SongInfo> searchList(String keyword) {
+        List<SongInfo> list = new ArrayList<>();
+        try {
+            Map<String, Object> data = new HashMap<>();
+            data.put("s", keyword);
+            data.put("type", 1);
+            data.put("limit", 20); // 搜索前20首
+            data.put("offset", 0);
+            data.put("csrf_token", "");
+
+            String jsonResp = request("https://music.163.com/weapi/cloudsearch/get/web", data);
+            if (jsonResp == null) return list;
+
+            JsonObject root = JsonParser.parseString(jsonResp).getAsJsonObject();
+            if (root.has("result") && !root.get("result").isJsonNull()) {
+                JsonObject result = root.getAsJsonObject("result");
+                if (result.has("songs")) {
+                    JsonArray songs = result.getAsJsonArray("songs");
+                    for (int i = 0; i < songs.size(); i++) {
+                        JsonObject song = songs.get(i).getAsJsonObject();
+                        String id = song.get("id").getAsString();
+                        String name = song.get("name").getAsString();
+
+                        // 获取歌手名 (可能有多个)
+                        String artist = "未知歌手";
+                        if (song.has("ar")) {
+                            JsonArray ar = song.getAsJsonArray("ar");
+                            if (ar.size() > 0) {
+                                artist = ar.get(0).getAsJsonObject().get("name").getAsString();
+                            }
+                        }
+                        list.add(new SongInfo(id, name, artist));
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+    // 3. 获取歌单里的所有歌曲 ID (返回 ID 列表)
+    public static List<Long> getPlaylistSongIds(long playlistId) {
+        List<Long> ids = new java.util.ArrayList<>();
+        try {
+            Map<String, Object> data = new HashMap<>();
+            data.put("id", playlistId);
+            data.put("n", 0);
+            data.put("csrf_token", "");
+
+            String jsonResp = request("https://music.163.com/weapi/v6/playlist/detail", data);
+            JsonObject root = JsonParser.parseString(jsonResp).getAsJsonObject();
+
+            if (root.get("code").getAsInt() == 200) {
+                JsonArray trackIds = root.getAsJsonObject("playlist").getAsJsonArray("trackIds");
+                for (int i = 0; i < trackIds.size(); i++) {
+                    ids.add(trackIds.get(i).getAsJsonObject().get("id").getAsLong());
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        System.out.println(">>> [API] 获取到歌单 ID 数: " + ids.size());
+        return ids;
+    }
+    // 2. 【新增】批量获取歌曲详情 (用于分页显示，一次查 50-100 首)
+    public static List<SongInfo> getSongsDetail(List<Long> songIds) {
+        List<SongInfo> list = new ArrayList<>();
+        if (songIds.isEmpty()) return list;
+
+        try {
+            // 构造 ids 参数: "[123, 456, 789]"
+            Map<String, Object> data = new HashMap<>();
+            List<Map<String, Object>> cList = new ArrayList<>();
+            for (Long id : songIds) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("id", id);
+                cList.add(item);
+            }
+            data.put("c", new com.google.gson.Gson().toJson(cList));
+            data.put("csrf_token", "");
+
+            // 调用歌曲详情接口
+            String jsonResp = request("https://music.163.com/weapi/v3/song/detail", data);
+            JsonObject root = JsonParser.parseString(jsonResp).getAsJsonObject();
+
+            if (root.has("songs")) {
+                JsonArray songs = root.getAsJsonArray("songs");
+                for (int i = 0; i < songs.size(); i++) {
+                    JsonObject song = songs.get(i).getAsJsonObject();
+                    String id = song.get("id").getAsString();
+                    String name = song.get("name").getAsString();
+                    String artist = "未知";
+                    if (song.has("ar")) {
+                        artist = song.getAsJsonArray("ar").get(0).getAsJsonObject().get("name").getAsString();
+                    }
+                    list.add(new SongInfo(id, name, artist));
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
     // 加密部分保持不变...
     private static final String MODULUS = "00e0b509f6259df8642dbc35662901477df22677ec152b5ff68ace615bb7b725152b3ab17a876aea8a5aa76d2e417629ec4ee341f56135fccf695280104e0312ecbda92557c93870114af6c9d05c4f7f0c3685b7a46bee255932575cce10b424d813cfe4875d3e82047b97ddef52741d546b8e289dc6935b3ece0462db0a22b8e7";
     private static final String NONCE = "0CoJUm6Qyw8W8jud";

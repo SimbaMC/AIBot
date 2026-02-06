@@ -33,6 +33,7 @@ public class C2SReportMusicPacket {
             // --- 这里的代码在【服务端】执行 ---
             ServerPlayer sender = ctx.get().getSender();
             if (sender != null) {
+                System.out.println(">>> [Server Debug] 收到客户端上报的 URL: " + url);
                 System.out.println(">>> [Server] 收到客户端上报的链接，准备广播...");
 
                 // 1. 复用你原来的 S2CPlayMusicPacket 进行广播

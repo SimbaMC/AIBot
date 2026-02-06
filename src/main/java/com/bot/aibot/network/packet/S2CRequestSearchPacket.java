@@ -51,6 +51,9 @@ public class S2CRequestSearchPacket {
                         return;
                     }
 
+                    // 【新增 Debug 代码】
+                    System.out.println(">>> [Client Debug] 解析到的直链 URL: " + url);
+
                     // 2. 拿到链接后的分支判断
                     if (isGlobal) {
                         // 模式 A: 全服广播 -> 把结果发回给服务端

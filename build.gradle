@@ -61,7 +61,7 @@ dependencies {
 
 
     shade 'javazoom:jlayer:1.0.1'
-    //minecraftLibrary 'javazoom:jlayer:1.0.1'
+    minecraftLibrary 'javazoom:jlayer:1.0.1'
 
     runtimeOnly fg.deobf("curse.maven:the-twilight-forest-227639:4714498")
 }
