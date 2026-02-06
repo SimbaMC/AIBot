@@ -11,22 +11,24 @@ import java.util.function.Supplier;
 public class S2CPlayMusicPacket {
     private final String url;
     private final String name;
+    private final long duration;
 
-    public S2CPlayMusicPacket(String url, String name) {
+    public S2CPlayMusicPacket(String url, String name, long duration) {
         this.url = url;
         this.name = name;
+        this.duration = duration;
     }
 
-    // 解码构造函数
     public S2CPlayMusicPacket(FriendlyByteBuf buf) {
         this.url = buf.readUtf();
         this.name = buf.readUtf();
+        this.duration = buf.readLong();
     }
 
-    // 编码方法
     public void encode(FriendlyByteBuf buf) {
         buf.writeUtf(this.url);
         buf.writeUtf(this.name);
+        buf.writeLong(this.duration);
     }
 
     // 关键：处理逻辑
@@ -34,11 +36,10 @@ public class S2CPlayMusicPacket {
         NetworkEvent.Context context = contextSupplier.get();
         context.enqueueWork(() -> {
             // 绝杀调试：在控制台强制打印
-            System.out.println(">>> [Packet] 客户端已接收到数据包! URL: " + url);
 
             // 安全地在客户端执行代码，防止 Side 冲突导致静默崩溃
             DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
-                ClientMusicManager.play(url, name);
+                ClientMusicManager.play(url, name,duration);
             });
         });
         context.setPacketHandled(true);

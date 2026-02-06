@@ -1,10 +1,10 @@
 package com.bot.aibot.client;
 
 import com.bot.aibot.network.PacketHandler;
+import com.bot.aibot.network.packet.C2SMusicActionPacket;
 import com.bot.aibot.network.packet.C2SReportMusicPacket;
 import com.bot.aibot.utils.NeteaseApi;
 import com.bot.aibot.utils.SongInfo;
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -12,164 +12,324 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.ObjectSelectionList;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 
 public class MusicPlayerScreen extends Screen {
 
+    // === 窗口尺寸 ===
+    private final int WINDOW_WIDTH = 340;
+    private final int WINDOW_HEIGHT = 220;
+    private int leftPos, topPos;
+
+    // === 状态管理 ===
+    private enum Tab { SEARCH, PLAYLIST }
+    private Tab currentTab = Tab.SEARCH;
+    private boolean isBroadcastMode = false; // 默认私享模式
+
+    // === 控件 ===
     private EditBox searchBox;
     private SongListWidget songList;
-    private final int SIDEBAR_WIDTH = 80;
-    private List<Long> allSongIdsCache; // 存那 2000 个 ID
+    private FlatButton btnSearch, btnLoadPlaylist, btnPrev, btnNext;
+    private FlatButton btnToggle, btnStop;
+    private FlatButton btnMode;
+
+    // === 数据缓存 ===
+    private List<Long> allSongIdsCache;
     private int currentPage = 0;
-    private final int PAGE_SIZE = 50;   // 每页显示 50 首
-    private Button btnPrev, btnNext;
-    private Component title = Component.literal("云音乐");
+    private final int PAGE_SIZE = 50;
+    private Component statusText = Component.empty();
+
+    // === Sodium 风格配色 ===
+    private static final int COLOR_BG = 0xCC101010;
+    private static final int COLOR_HEADER = 0xFF000000;
+    private static final int COLOR_ACCENT = 0xFF2ECC71;
+    private static final int COLOR_TEXT_IDLE = 0xFFAAAAAA;
+    private static final int COLOR_TEXT_ACTIVE = 0xFFFFFFFF;
+    private static final int COLOR_HOVER = 0x20FFFFFF;
 
     public MusicPlayerScreen() {
-        super(Component.literal("Netease Music"));
+        super(Component.literal("AiBot Netease"));
     }
 
     @Override
     protected void init() {
-        // 1. 初始化搜索框 (顶部)
-        this.searchBox = new EditBox(this.font, SIDEBAR_WIDTH + 10, 10, this.width - SIDEBAR_WIDTH - 80, 20, Component.literal("搜索"));
+        this.leftPos = (this.width - WINDOW_WIDTH) / 2;
+        this.topPos = (this.height - WINDOW_HEIGHT) / 2;
+
+        int contentTop = topPos + 35;
+
+        // 1. 搜索页控件
+        this.searchBox = new EditBox(this.font, leftPos + 10, contentTop + 10, 200, 18, Component.literal("搜索"));
+        this.searchBox.setBordered(false);
+        this.searchBox.setTextColor(0xFFFFFF);
         this.addRenderableWidget(this.searchBox);
 
-        // 2. 初始化搜索按钮
-        this.addRenderableWidget(Button.builder(Component.literal("搜索"), button -> doSearch())
-                .bounds(this.width - 60, 10, 50, 20)
-                .build());
+        this.btnSearch = new FlatButton(leftPos + 220, contentTop + 9, 50, 20, "GO", b -> doSearch());
+        this.addRenderableWidget(this.btnSearch);
 
-        // 3. 初始化左侧功能按钮
-        this.addRenderableWidget(Button.builder(Component.literal("我的歌单"), button -> loadMyPlaylist())
-                .bounds(10, 40, 60, 20)
-                .build());
+        // 2. 歌单页控件
+        this.btnLoadPlaylist = new FlatButton(leftPos + 10, contentTop + 10, 100, 20, "刷新", b -> loadMyPlaylist());
+        this.btnLoadPlaylist.visible = false;
+        this.addRenderableWidget(this.btnLoadPlaylist);
 
-        // 4. 初始化滚动列表 (占据主要区域)
-        this.songList = new SongListWidget(this.minecraft, this.width - SIDEBAR_WIDTH, this.height - 40, 40, this.height);
-        this.songList.setLeftPos(SIDEBAR_WIDTH); // 设置列表左边距
-        this.addWidget(this.songList);
+        // 3. 底部控制栏
+        int bottomY = topPos + WINDOW_HEIGHT - 35;
 
-        // 【新增】翻页按钮 (放在列表底部或者顶部)
-        this.btnPrev = Button.builder(Component.literal("< 上一页"), b -> changePage(-1))
-                .bounds(this.width - 200, this.height - 30, 80, 20).build();
-        this.btnNext = Button.builder(Component.literal("下一页 >"), b -> changePage(1))
-                .bounds(this.width - 100, this.height - 30, 80, 20).build();
+        // 暂停/播放
+        this.btnToggle = new FlatButton(leftPos + 10, bottomY, 25, 20, "||", b -> {
+            PacketHandler.sendToServer(new C2SMusicActionPacket(1));
+        });
+        this.addRenderableWidget(this.btnToggle);
 
+        // 停止
+        this.btnStop = new FlatButton(leftPos + 40, bottomY, 25, 20, "■", b -> {
+            PacketHandler.sendToServer(new C2SMusicActionPacket(0));
+        });
+        this.addRenderableWidget(this.btnStop);
+
+        // 模式切换
+        this.btnMode = new FlatButton(leftPos + 75, bottomY, 60, 20, "🎧 私享", b -> {
+            isBroadcastMode = !isBroadcastMode;
+            updateModeButton();
+        });
+        updateModeButton(); // 初始化文字
+        this.addRenderableWidget(this.btnMode);
+
+        // 翻页
+        this.btnPrev = new FlatButton(leftPos + WINDOW_WIDTH - 90, bottomY, 35, 20, "<", b -> changePage(-1));
+        this.btnNext = new FlatButton(leftPos + WINDOW_WIDTH - 50, bottomY, 35, 20, ">", b -> changePage(1));
         this.btnPrev.active = false;
         this.btnNext.active = false;
-
         this.addRenderableWidget(this.btnPrev);
         this.addRenderableWidget(this.btnNext);
+
+        // 列表
+        int listY = contentTop + 40;
+        int listH = WINDOW_HEIGHT - 35 - 40 - 45;
+        this.songList = new SongListWidget(this.minecraft, WINDOW_WIDTH - 20, listH, listY);
+        this.songList.setLeftPos(leftPos + 10);
+        this.addWidget(this.songList);
+
+        updateTabVisibility();
     }
 
-    private void doSearch() {
-        String keyword = searchBox.getValue();
-        if (keyword.isEmpty()) return;
+    private void updateModeButton() {
+        if (isBroadcastMode) {
+            btnMode.setMessage(Component.literal("📢 全服"));
+        } else {
+            btnMode.setMessage(Component.literal("🎧 私享"));
+        }
+    }
 
-        // 异步搜索，防止卡顿
+    private void switchTab(Tab tab) {
+        this.currentTab = tab;
+        updateTabVisibility();
+    }
+
+    private void updateTabVisibility() {
+        boolean isSearch = (currentTab == Tab.SEARCH);
+        this.searchBox.visible = isSearch;
+        this.searchBox.setEditable(isSearch);
+        this.btnSearch.visible = isSearch;
+        this.btnLoadPlaylist.visible = !isSearch;
+    }
+
+    // --- 逻辑部分 ---
+    private void doSearch() {
+        String k = searchBox.getValue();
+        if (k.isEmpty()) return;
+        statusText = Component.literal("正在搜索...");
         new Thread(() -> {
-            List<SongInfo> results = NeteaseApi.searchList(keyword);
+            List<SongInfo> res = NeteaseApi.searchList(k);
             Minecraft.getInstance().execute(() -> {
-                songList.refreshList(results);
+                songList.refreshList(res);
+                statusText = Component.literal("找到 " + res.size() + " 首歌曲");
             });
         }).start();
     }
 
     private void loadMyPlaylist() {
+        statusText = Component.literal("正在获取歌单...");
         new Thread(() -> {
             long uid = NeteaseApi.getMyUid();
-            if (uid == 0) return;
-            var playlists = NeteaseApi.getUserPlaylists(uid);
-            if (playlists != null && playlists.size() > 0) {
-                long favId = playlists.get(0).getAsJsonObject().get("id").getAsLong();
-                String plName = playlists.get(0).getAsJsonObject().get("name").getAsString();
-
-                // 1. 先只拿 ID (2000个也能秒拿)
-                this.allSongIdsCache = NeteaseApi.getPlaylistSongIds(favId);
-                this.currentPage = 0;
-
-                // 更新标题
-                this.title = Component.literal(plName + " (" + allSongIdsCache.size() + "首)");
-
-                // 2. 加载第一页数据
+            if (uid == 0) {
+                statusText = Component.literal("未登录，请先 /bot login");
+                return;
+            }
+            var pl = NeteaseApi.getUserPlaylists(uid);
+            if (pl != null && pl.size() > 0) {
+                long fid = pl.get(0).getAsJsonObject().get("id").getAsLong();
+                allSongIdsCache = NeteaseApi.getPlaylistSongIds(fid);
+                currentPage = 0;
                 loadCurrentPageSongs();
             }
         }).start();
     }
-    private void changePage(int offset) {
-        this.currentPage += offset;
-        loadCurrentPageSongs();
-    }
+
+    private void changePage(int off) { currentPage += off; loadCurrentPageSongs(); }
+
     private void loadCurrentPageSongs() {
-        if (allSongIdsCache == null || allSongIdsCache.isEmpty()) return;
-
+        if (allSongIdsCache == null) return;
         new Thread(() -> {
-            // 计算分页偏移量
-            int start = currentPage * PAGE_SIZE;
-            int end = Math.min(start + PAGE_SIZE, allSongIdsCache.size());
-
-            if (start >= allSongIdsCache.size()) return;
-
-            // 截取这 50 个 ID
-            List<Long> subList = allSongIdsCache.subList(start, end);
-
-            // 去查这 50 个的详情
-            List<SongInfo> details = NeteaseApi.getSongsDetail(subList);
-
+            int s = currentPage * PAGE_SIZE;
+            int e = Math.min(s + PAGE_SIZE, allSongIdsCache.size());
+            if (s >= allSongIdsCache.size()) return;
+            List<SongInfo> d = NeteaseApi.getSongsDetail(allSongIdsCache.subList(s, e));
             Minecraft.getInstance().execute(() -> {
-                // 刷新列表
-                songList.refreshList(details);
-
-                // 更新按钮状态
+                songList.refreshList(d);
                 btnPrev.active = currentPage > 0;
-                btnNext.active = end < allSongIdsCache.size();
+                btnNext.active = e < allSongIdsCache.size();
+                songList.setScrollAmount(0);
+                statusText = Component.literal("页码: " + (currentPage + 1));
             });
         }).start();
     }
 
+    // === 核心渲染逻辑 ===
+    // 【修复】修改参数名 graphics -> g, mouseX -> mx, mouseY -> my, partialTick -> pt
+    // 这样下面的代码就不会报错了
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        this.renderBackground(graphics);
+    public void render(GuiGraphics g, int mx, int my, float pt) {
+        this.renderBackground(g);
 
-        // 1. 绘制左侧边栏背景 (深灰色)
-        graphics.fill(0, 0, SIDEBAR_WIDTH, this.height, 0xFF222222);
+        // 窗口背景
+        g.fill(leftPos, topPos, leftPos + WINDOW_WIDTH, topPos + WINDOW_HEIGHT, COLOR_BG);
+        g.fill(leftPos, topPos, leftPos + WINDOW_WIDTH, topPos + 30, COLOR_HEADER);
 
-        // 2. 绘制顶部栏背景 (网易红)
-        graphics.fill(SIDEBAR_WIDTH, 0, this.width, 40, 0xFFC20C0C);
+        // Tab
+        renderTab(g, "搜 索", Tab.SEARCH, leftPos + 20, topPos + 8, mx, my);
+        renderTab(g, "我的喜欢", Tab.PLAYLIST, leftPos + 80, topPos + 8, mx, my);
 
-        graphics.drawString(this.font, this.title, 10, 15, 0xFFFFFF);
+        int activeX = (currentTab == Tab.SEARCH) ? leftPos + 20 : leftPos + 80;
+        int activeW = (currentTab == Tab.SEARCH) ? 30 : 45;
+        g.fill(activeX - 2, topPos + 28, activeX + activeW + 2, topPos + 30, COLOR_ACCENT);
 
-        // 3. 绘制标题
-        graphics.drawString(this.font, "云音乐", 10, 15, 0xFFFFFF);
-
-        // 4. 渲染列表
-        this.songList.render(graphics, mouseX, mouseY, partialTick);
-
-        super.render(graphics, mouseX, mouseY, partialTick);
-    }
-
-    // ================= 内部类：歌曲列表控件 =================
-    class SongListWidget extends ObjectSelectionList<SongListWidget.SongEntry> {
-
-        public SongListWidget(Minecraft mc, int width, int height, int top, int bottom) {
-            super(mc, width, height, top, bottom, 24); // 24 是每一行的高度
+        // 搜索框背景
+        if (currentTab == Tab.SEARCH) {
+            g.fill(searchBox.getX() - 2, searchBox.getY() - 2, searchBox.getX() + searchBox.getWidth() + 2, searchBox.getY() + searchBox.getHeight() + 2, 0xFF202020);
         }
 
-        public void refreshList(List<SongInfo> songs) {
-            this.clearEntries();
-            for (SongInfo song : songs) {
-                this.addEntry(new SongEntry(song));
-            }
+        // 进度条
+        renderProgressBar(g);
+
+        // 更新按钮文字
+        this.btnToggle.setMessage(Component.literal(ClientMusicManager.isPaused() ? "▶" : "||"));
+
+        // 状态文字
+        if (!statusText.getString().isEmpty()) {
+            g.drawString(this.font, statusText, leftPos + 10, topPos + WINDOW_HEIGHT - 45, 0xFF666666, false);
+        }
+
+        // 绘制列表和按钮
+        this.songList.render(g, mx, my, pt);
+        super.render(g, mx, my, pt);
+    }
+
+    private void renderTab(GuiGraphics g, String text, Tab tab, int x, int y, int mx, int my) {
+        boolean isActive = (currentTab == tab);
+        boolean isHover = mx >= x && mx <= x + font.width(text) && my >= topPos && my <= topPos + 30;
+        int color = isActive ? COLOR_TEXT_ACTIVE : (isHover ? 0xFFE0E0E0 : COLOR_TEXT_IDLE);
+        g.drawString(this.font, text, x, y, color, false);
+    }
+
+    private void renderProgressBar(GuiGraphics g) {
+        if (!ClientMusicManager.isPlaying()) return;
+
+        long current = ClientMusicManager.getProgress();
+        long total = ClientMusicManager.currentDuration;
+        if (total <= 0) total = 1;
+
+        float percent = (float) current / total;
+        percent = Math.min(1.0f, Math.max(0.0f, percent));
+
+        int barX = leftPos + 10;
+        int barY = topPos + WINDOW_HEIGHT - 40;
+        int barW = WINDOW_WIDTH - 20;
+        int barH = 2;
+
+        g.fill(barX, barY, barX + barW, barY + barH, 0xFF303030);
+        g.fill(barX, barY, barX + (int) (barW * percent), barY + barH, COLOR_ACCENT);
+
+        String timeStr = formatTime(current) + " / " + formatTime(total);
+        g.pose().pushPose();
+        g.pose().scale(0.8f, 0.8f, 0.8f);
+        g.drawString(this.font, timeStr, (int) ((barX + 2) / 0.8), (int) ((barY - 8) / 0.8), 0xFFAAAAAA, false);
+        g.pose().popPose();
+    }
+
+    private String formatTime(long ms) {
+        long sec = ms / 1000;
+        return String.format("%02d:%02d", sec / 60, sec % 60);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (mouseY >= topPos && mouseY <= topPos + 30) {
+            if (mouseX >= leftPos + 20 && mouseX <= leftPos + 60) switchTab(Tab.SEARCH);
+            if (mouseX >= leftPos + 80 && mouseX <= leftPos + 140) switchTab(Tab.PLAYLIST);
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    // ================= 自定义扁平按钮 =================
+    private class FlatButton extends Button {
+        public FlatButton(int x, int y, int w, int h, String label, OnPress onPress) {
+            super(x, y, w, h, Component.literal(label), onPress, DEFAULT_NARRATION);
+        }
+
+        @Override
+        public void renderWidget(GuiGraphics g, int mx, int my, float pt) {
+            int bgColor = this.isHoveredOrFocused() ? 0xFF404040 : 0xFF202020;
+            if (!this.active) bgColor = 0xFF101010;
+            g.fill(getX(), getY(), getX() + width, getY() + height, bgColor);
+            int textColor = this.active ? 0xFFFFFFFF : 0xFF555555;
+            // 模式按钮特殊颜色
+            if (this == btnMode && isBroadcastMode) textColor = 0xFFFF5555;
+            g.drawCenteredString(font, getMessage(), getX() + width / 2, getY() + (height - 8) / 2, textColor);
+        }
+    }
+
+    // ================= 列表控件 =================
+    class SongListWidget extends ObjectSelectionList<SongListWidget.SongEntry> {
+        private final int listY;
+
+        public SongListWidget(Minecraft mc, int width, int height, int top) {
+            super(mc, width, height, top, top + height, 24);
+            this.listY = top;
         }
 
         @Override
         protected int getScrollbarPosition() {
-            return this.getRight() - 6;
+            return getLeft() + getRowWidth() + 6;
         }
 
-        // ================= 内部类：单行歌曲条目 =================
+        @Override
+        public int getRowWidth() {
+            return width - 10;
+        }
+
+        @Override
+        public void render(@NotNull GuiGraphics g, int mx, int my, float pt) {
+            g.enableScissor(getLeft(), getTop(), getRight(), getBottom());
+            super.render(g, mx, my, pt);
+            g.disableScissor();
+        }
+
+        @Override
+        protected void renderBackground(@NotNull GuiGraphics g) {
+        }
+
+        @Override
+        protected void renderDecorations(@NotNull GuiGraphics g, int mx, int my) {
+        }
+
+        public void refreshList(List<SongInfo> songs) {
+            this.clearEntries();
+            for (SongInfo s : songs) this.addEntry(new SongEntry(s));
+        }
+
         public class SongEntry extends ObjectSelectionList.Entry<SongEntry> {
             private final SongInfo song;
             private long lastClickTime = 0;
@@ -179,22 +339,23 @@ public class MusicPlayerScreen extends Screen {
             }
 
             @Override
-            public void render(GuiGraphics graphics, int index, int top, int left, int width, int height, int mouseX, int mouseY, boolean isHovered, float partialTick) {
-                // 歌手名 (灰色)
-                graphics.drawString(Minecraft.getInstance().font, song.artist, left + width - 100, top + 6, 0xFFAAAAAA);
-                // 歌名 (白色)
-                graphics.drawString(Minecraft.getInstance().font, song.name, left + 5, top + 6, 0xFFFFFFFF);
+            public void render(GuiGraphics g, int idx, int top, int left, int w, int h, int mx, int my, boolean hover, float pt) {
+                if (hover) g.fill(left, top, left + w, top + h, COLOR_HOVER);
+
+                String name = font.plainSubstrByWidth(song.name, w - 80);
+                g.drawString(font, name, left + 4, top + 8, 0xFFDDDDDD, false);
+
+                String artist = font.plainSubstrByWidth(song.artist, 70);
+                g.drawString(font, artist, left + w - font.width(artist) - 4, top + 8, 0xFF666666, false);
             }
 
             @Override
-            public boolean mouseClicked(double mouseX, double mouseY, int button) {
-                if (button == 0) { // 左键点击
+            public boolean mouseClicked(double mx, double my, int btn) {
+                if (btn == 0) {
                     SongListWidget.this.setSelected(this);
-
-                    // 双击检测 (500ms 内两次点击)
                     long now = System.currentTimeMillis();
                     if (now - lastClickTime < 500) {
-                        playSong(this.song);
+                        playLogic(song); // 统一使用 playLogic
                     }
                     lastClickTime = now;
                     return true;
@@ -202,20 +363,25 @@ public class MusicPlayerScreen extends Screen {
                 return false;
             }
 
-            private void playSong(SongInfo song) {
-                Minecraft.getInstance().setScreen(null); // 关闭界面
-                Minecraft.getInstance().player.sendSystemMessage(Component.literal("§a[GUI] 正在请求播放: " + song.name));
+            private void playLogic(SongInfo song) {
+                String modeText = isBroadcastMode ? "§c[全服广播]" : "§a[私享模式]";
+                Minecraft.getInstance().player.sendSystemMessage(Component.literal(modeText + " §f正在请求: " + song.name));
 
-                // 异步获取链接并发送给服务端
                 new Thread(() -> {
                     String url = NeteaseApi.getSongUrl(song.id);
-                    if (url != null) {
-                        // 发送给服务端全服广播
-                        PacketHandler.sendToServer(new C2SReportMusicPacket(url, song.name + " - " + song.artist));
-                    } else {
+                    if (url == null) {
                         Minecraft.getInstance().execute(() ->
-                                Minecraft.getInstance().player.sendSystemMessage(Component.literal("§c无法获取播放链接 (可能无版权)"))
+                                Minecraft.getInstance().player.sendSystemMessage(Component.literal("§c播放失败：无法获取链接 (VIP/无版权)"))
                         );
+                        return;
+                    }
+
+                    if (isBroadcastMode) {
+                        PacketHandler.sendToServer(new C2SReportMusicPacket(url, song.name + " - " + song.artist, song.duration));
+                    } else {
+                        Minecraft.getInstance().execute(() -> {
+                            ClientMusicManager.play(url, song.name + " - " + song.artist, song.duration);
+                        });
                     }
                 }).start();
             }

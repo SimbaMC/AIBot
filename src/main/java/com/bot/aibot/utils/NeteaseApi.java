@@ -322,6 +322,9 @@ public class NeteaseApi {
                         String id = song.get("id").getAsString();
                         String name = song.get("name").getAsString();
 
+                        // 【新增】获取时长 (默认0)
+                        long duration = song.has("dt") ? song.get("dt").getAsLong() : 0;
+
                         // 获取歌手名 (可能有多个)
                         String artist = "未知歌手";
                         if (song.has("ar")) {
@@ -330,7 +333,7 @@ public class NeteaseApi {
                                 artist = ar.get(0).getAsJsonObject().get("name").getAsString();
                             }
                         }
-                        list.add(new SongInfo(id, name, artist));
+                        list.add(new SongInfo(id, name, artist,duration));
                     }
                 }
             }
@@ -391,11 +394,13 @@ public class NeteaseApi {
                     JsonObject song = songs.get(i).getAsJsonObject();
                     String id = song.get("id").getAsString();
                     String name = song.get("name").getAsString();
+                    // 【新增】获取时长
+                    long duration = song.has("dt") ? song.get("dt").getAsLong() : 0;
                     String artist = "未知";
                     if (song.has("ar")) {
                         artist = song.getAsJsonArray("ar").get(0).getAsJsonObject().get("name").getAsString();
                     }
-                    list.add(new SongInfo(id, name, artist));
+                    list.add(new SongInfo(id, name, artist,duration));
                 }
             }
         } catch (Exception e) {

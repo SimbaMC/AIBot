@@ -12,8 +12,9 @@ import java.util.function.Supplier;
 public class C2SReportMusicPacket {
     private final String url;
     private final String songName;
+    private final long duration;
 
-    public C2SReportMusicPacket(String url, String songName) {
+    public C2SReportMusicPacket(String url, String songName,long duration) {
         this.url = url;
         this.songName = songName;
     }
@@ -21,11 +22,13 @@ public class C2SReportMusicPacket {
     public C2SReportMusicPacket(FriendlyByteBuf buf) {
         this.url = buf.readUtf();
         this.songName = buf.readUtf();
+        this.duration = buf.readLong();
     }
 
     public void encode(FriendlyByteBuf buf) {
         buf.writeUtf(this.url);
         buf.writeUtf(this.songName);
+        buf.writeLong(this.duration);
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
@@ -37,7 +40,7 @@ public class C2SReportMusicPacket {
                 System.out.println(">>> [Server] 收到客户端上报的链接，准备广播...");
 
                 // 1. 复用你原来的 S2CPlayMusicPacket 进行广播
-                S2CPlayMusicPacket broadcastPacket = new S2CPlayMusicPacket(url, songName);
+                S2CPlayMusicPacket broadcastPacket = new S2CPlayMusicPacket(url, songName,duration);
                 PacketHandler.INSTANCE.send(PacketDistributor.ALL.noArg(), broadcastPacket);
 
                 // 2. 发送全服提示消息

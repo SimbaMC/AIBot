@@ -63,7 +63,6 @@ dependencies {
     shade 'javazoom:jlayer:1.0.1'
     minecraftLibrary 'javazoom:jlayer:1.0.1'
 
-    runtimeOnly fg.deobf("curse.maven:the-twilight-forest-227639:4714498")
 }
 reobf {
     shadowJar {} // 【关键】这行代码会生成 reobfShadowJar 任务

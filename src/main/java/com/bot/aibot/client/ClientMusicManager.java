@@ -20,8 +20,13 @@ public class ClientMusicManager {
     private static volatile boolean isPlaying = false;
     private static volatile boolean isPaused = false;
     private static String currentMusicName = "";
+    // 新增状态字段
+    public static volatile long currentDuration = 0; // 总时长 (ms)
+    public static volatile long playStartTime = 0;   // 开始播放的时间戳
+    public static volatile long pauseStartTime = 0;  // 暂停时的时间戳
+    public static volatile long totalPausedTime = 0; // 累计暂停时间
 
-    public static void play(String url, String name) {
+    public static void play(String url, String name,long duration) {
         stop(); // 切换歌曲时先彻底停止老歌
 
         Minecraft mc = Minecraft.getInstance();
@@ -38,6 +43,10 @@ public class ClientMusicManager {
             mc.getSoundManager().stop(null, SoundSource.MUSIC);
             mc.getSoundManager().stop(null, SoundSource.RECORDS);
         }
+        // 重置计时器
+        currentDuration = duration;
+        playStartTime = System.currentTimeMillis();
+        totalPausedTime = 0;
 
         isPlaying = true;
         isPaused = false;
@@ -118,11 +127,24 @@ public class ClientMusicManager {
 
     public static void togglePause() {
         isPaused = !isPaused;
+        // 计时逻辑
+        if (isPaused) {
+            pauseStartTime = System.currentTimeMillis();
+        } else {
+            totalPausedTime += (System.currentTimeMillis() - pauseStartTime);
+        }
         String status = isPaused ? "§6已暂停" : "§a已恢复播放";
         if (Minecraft.getInstance().player != null) {
             Minecraft.getInstance().player.displayClientMessage(
                     Component.literal("§b[Music] " + status + ": " + currentMusicName), true);
         }
+    }
+    // 【新增】获取当前播放进度 (ms)
+    public static long getProgress() {
+        if (!isPlaying) return 0;
+        long now = isPaused ? pauseStartTime : System.currentTimeMillis();
+        long elapsed = now - playStartTime - totalPausedTime;
+        return Math.max(0, Math.min(elapsed, currentDuration)); // 限制范围
     }
 
     public static void stop() {
@@ -155,4 +177,7 @@ public class ClientMusicManager {
             }
         } catch (Exception ignored) {}
     }
+    // 【新增】获取状态 (供 GUI 使用)
+    public static boolean isPaused() { return isPaused; }
+    public static boolean isPlaying() { return isPlaying; }
 }

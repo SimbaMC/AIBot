@@ -59,6 +59,20 @@ public class PacketHandler {
                 .encoder(C2SReportMusicPacket::encode)
                 .consumerMainThread(C2SReportMusicPacket::handle)
                 .add();
+
+        INSTANCE.messageBuilder(S2CRequestActionPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .decoder(S2CRequestActionPacket::new)
+                .encoder(S2CRequestActionPacket::encode)
+                .consumerMainThread(S2CRequestActionPacket::handle)
+                .add();
+
+        // 【新增】注册 C2SMusicActionPacket
+        INSTANCE.messageBuilder(C2SMusicActionPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .decoder(C2SMusicActionPacket::new)
+                .encoder(C2SMusicActionPacket::encode)
+                .consumerMainThread(C2SMusicActionPacket::handle)
+                .add();
+
     }
 
     // --- 新增以下方法 ---
@@ -76,5 +90,10 @@ public class PacketHandler {
      */
     public static <MSG> void sendToServer(MSG message) {
         INSTANCE.sendToServer(message);
+    }
+
+    // 【新增】广播给所有人
+    public static <MSG> void sendToAll(MSG message) {
+        INSTANCE.send(PacketDistributor.ALL.noArg(), message);
     }
 }

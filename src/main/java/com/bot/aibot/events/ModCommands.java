@@ -4,6 +4,7 @@ import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.network.BotClient;
 import com.bot.aibot.network.PacketHandler;
 import com.bot.aibot.network.packet.S2CMusicControlPacket;
+import com.bot.aibot.network.packet.S2CRequestActionPacket;
 import com.bot.aibot.utils.ChineseUtils; // 导入这个
 import com.bot.aibot.utils.NeteaseApi;
 import com.mojang.brigadier.arguments.StringArgumentType; // 导入这个
@@ -88,6 +89,32 @@ public class ModCommands {
                                         PacketHandler.sendToPlayer(new com.bot.aibot.network.packet.S2CStopLoginPacket(), player);
                                         context.getSource().sendSystemMessage(Component.literal("§7[Bot] 已向您的客户端发送终止信号。"));
                                     }
+                                    return 1;
+                                })
+                        )
+
+                        // 指令: /bot gui (打开界面)
+                        .then(Commands.literal("gui")
+                                .executes(context -> {
+                                    // 发送 ACTION="OPEN_GUI" 给玩家
+                                    PacketHandler.sendToPlayer(new S2CRequestActionPacket("OPEN_GUI"), context.getSource().getPlayerOrException());
+                                    return 1;
+                                })
+                        )
+
+                        // 指令: /bot mine (查看歌单)
+                        .then(Commands.literal("mine")
+                                .executes(context -> {
+                                    PacketHandler.sendToPlayer(new S2CRequestActionPacket("MINE"), context.getSource().getPlayerOrException());
+                                    return 1;
+                                })
+                        )
+
+                        // 指令: /bot mylike (随机红心)
+                        .then(Commands.literal("mylike")
+                                .executes(context -> {
+                                    context.getSource().sendSuccess(() -> Component.literal("§b[Bot] 正在前往您的客户端抽取幸运歌曲..."), false);
+                                    PacketHandler.sendToPlayer(new S2CRequestActionPacket("MYLIKE"), context.getSource().getPlayerOrException());
                                     return 1;
                                 })
                         )
