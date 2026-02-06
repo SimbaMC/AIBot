@@ -6,6 +6,7 @@ import com.bot.aibot.events.MinecraftEvents;
 import com.bot.aibot.network.BotClient;
 import com.bot.aibot.network.PacketHandler;
 import com.bot.aibot.network.packet.S2CPlayMusicPacket;
+import com.bot.aibot.network.packet.S2CRequestSearchPacket;
 import com.bot.aibot.utils.ChineseUtils;
 import com.bot.aibot.utils.NeteaseApi;
 import com.google.gson.JsonArray;
@@ -41,7 +42,7 @@ public class LLMClient {
         // 动态拼接功能指令：强制 AI 补全歌手名以提高搜索精度
         String systemPrompt = basePrompt +
                 "\n\n[核心功能指令]：" +
-                "\n. 【核心】请优化搜索词！如果玩家说中文译名，请优先转换为原语种名称，玩家也可能说的是一个网络热梗，请先思考后再返回歌曲名。" +
+                "\n. 【核心】请优化搜索词！如果玩家说中文译名，请优先转换为原语种名称，玩家也可能说的是一个网络热梗，请先检索后再返回歌曲名。" +
                 "\n. 如果玩家只提供了歌词或模糊信息，请根据你的知识库将其转换为 '歌手 - 歌名' 格式，以提高网易云搜索精度。" +
                 "\n- 如果玩家想点歌，请在回复末尾添加 'PLAY: 歌曲名'。" +
                 "\n- 如果玩家想点歌且明确提到“所有人”、“全服”、“广播”等，请在末尾加上 'BROADCAST: 歌曲名'。" +
@@ -106,34 +107,25 @@ public class LLMClient {
     }
 
     /**
-     * 异步点歌逻辑
-     * @param isGlobal 是否为全服广播
+     * 【核心修改】异步点歌逻辑 -> 改为发送 S2CRequestSearchPacket
      */
     private static void handleAiMusic(ServerPlayer player, String keyword, boolean isGlobal) {
-        CompletableFuture.runAsync(() -> {
-            try {
-                System.out.println(">>> [Music Debug] 搜索: [" + keyword + "], 模式: " + (isGlobal ? "全服" : "私享"));
-                String songId = NeteaseApi.search(keyword);
-                if (songId != null) {
-                    String url = NeteaseApi.getSongUrl(songId);
-                    if (url != null) {
-                        S2CPlayMusicPacket packet = new S2CPlayMusicPacket(url, keyword);
-                        if (isGlobal) {
-                            // 全服广播逻辑 (对应 /bot play all)
-                            PacketHandler.INSTANCE.send(PacketDistributor.ALL.noArg(), packet);
-                            Component msg = Component.literal("§6▶️ [全服广播] §f正在播放: §a" + keyword);
-                            BottyMod.serverInstance.getPlayerList().getPlayers().forEach(p -> p.sendSystemMessage(msg));
-                        } else {
-                            // 私享逻辑 (对应 /bot play)
-                            PacketHandler.sendToPlayer(packet, player);
-                            player.sendSystemMessage(Component.literal("§b▶️ [私享] §f正在为您播放: §a" + keyword + " §7(原版 BGM 已暂停)"));
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                System.err.println("AI 点歌执行失败: " + e.getMessage());
-            }
-        });
+        // 不需要 CompletableFuture 了，因为发包是非阻塞的
+        System.out.println(">>> [Music Debug] AI 发起搜索: [" + keyword + "], 模式: " + (isGlobal ? "全服" : "私享"));
+
+        // 1. 构造“帮我搜歌”的请求包
+        // 参数：关键词, 是否广播
+        S2CRequestSearchPacket packet = new S2CRequestSearchPacket(keyword, isGlobal);
+
+        // 2. 发送给玩家客户端
+        PacketHandler.sendToPlayer(packet, player);
+
+        // 3. 给个反馈
+        if (isGlobal) {
+            player.sendSystemMessage(Component.literal("§a[Bot] AI 已为您发起全服点歌: §e" + keyword));
+        } else {
+            player.sendSystemMessage(Component.literal("§b[Bot] AI 已为您发起私享点歌: §e" + keyword));
+        }
     }
 
     private static void handleStopMusic(ServerPlayer player) {
