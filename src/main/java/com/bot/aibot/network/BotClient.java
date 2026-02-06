@@ -2,6 +2,8 @@ package com.bot.aibot.network;
 
 import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.utils.ChineseUtils;
+import com.bot.aibot.utils.HttpUtils;
+import com.google.gson.JsonObject;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -29,7 +31,7 @@ public class BotClient {
             try {
                 System.out.println(">>> [Bot] 正在后台尝试连接...");
                 String url = BotConfig.SERVER.wsUrl.get();
-                HttpClient client = HttpClient.newHttpClient();
+                HttpClient client = HttpUtils.getClient(); // 使用全局单例
 
                 CompletableFuture<WebSocket> wsFuture = client.newWebSocketBuilder()
                         .connectTimeout(java.time.Duration.ofSeconds(5))
@@ -70,7 +72,19 @@ public class BotClient {
             List<? extends Number> groups = BotConfig.SERVER.groupIds.get();
             for (Number groupId : groups) {
                 long gid = groupId.longValue();
-                String json = "{\"action\":\"send_group_msg\",\"params\":{\"group_id\":" + gid + ",\"message\":\"" + message + "\"}}";
+
+
+                JsonObject params = new JsonObject();
+                params.addProperty("group_id", gid);
+                params.addProperty("message", message); // Gson 会自动处理引号、换行符等特殊字符
+
+                JsonObject root = new JsonObject();
+                root.addProperty("action", "send_group_msg");
+                root.add("params", params);
+
+                String json = HttpUtils.getGson().toJson(root);
+
+
                 webSocket.sendText(json, true);
             }
         }

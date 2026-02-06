@@ -301,11 +301,17 @@ public class MusicPlayerScreen extends Screen {
                 return;
             }
             if (performBroadcast) {
-                PacketHandler.sendToServer(new C2SReportMusicPacket(url, song.name + " - " + song.artist, song.duration));
+                // 【修正】这里填 true，明确告诉服务端：“这是一次广播请求！”
+                PacketHandler.sendToServer(new C2SReportMusicPacket(url, song.name + " - " + song.artist, song.duration, true));
             } else {
                 Minecraft.getInstance().execute(() -> ClientMusicManager.play(url, song.name + " - " + song.artist, song.duration));
             }
         }).start();
+    }
+    public static void resetCooldown() {
+        lastBroadcastTime = 0;
+        // 如果需要，也可以在这里顺便把状态文字清空
+        // CACHED_BROADCAST_MODE = false; // 可选：是否顺便重置回私享模式？看你需求，这里只重置时间
     }
 
     // ... (initLoginPromptInterface 等保持不变) ...

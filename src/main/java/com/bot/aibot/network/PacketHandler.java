@@ -19,25 +19,6 @@ public class PacketHandler {
 
     public static void register() {
         int id = 0;
-        INSTANCE.messageBuilder(S2CPlayMusicPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .decoder(S2CPlayMusicPacket::new)
-                .encoder(S2CPlayMusicPacket::encode)
-                .consumerMainThread(S2CPlayMusicPacket::handle)
-                .add();
-
-        INSTANCE.messageBuilder(S2CMusicControlPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .decoder(S2CMusicControlPacket::new)
-                .encoder(S2CMusicControlPacket::encode)
-                .consumerMainThread(S2CMusicControlPacket::handle)
-                .add();
-
-
-
-        INSTANCE.messageBuilder(S2CRequestSearchPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .decoder(S2CRequestSearchPacket::new)
-                .encoder(S2CRequestSearchPacket::encode)
-                .consumerMainThread(S2CRequestSearchPacket::handle)
-                .add();
 
         INSTANCE.messageBuilder(C2SReportMusicPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .decoder(C2SReportMusicPacket::new)
@@ -45,17 +26,18 @@ public class PacketHandler {
                 .consumerMainThread(C2SReportMusicPacket::handle)
                 .add();
 
-        INSTANCE.messageBuilder(S2CRequestActionPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .decoder(S2CRequestActionPacket::new)
-                .encoder(S2CRequestActionPacket::encode)
-                .consumerMainThread(S2CRequestActionPacket::handle)
-                .add();
-
         // 【新增】注册 C2SMusicActionPacket
         INSTANCE.messageBuilder(C2SMusicActionPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .decoder(C2SMusicActionPacket::new)
                 .encoder(C2SMusicActionPacket::encode)
                 .consumerMainThread(C2SMusicActionPacket::handle)
+                .add();
+
+        // --- 【新增】注册新包 ---
+        INSTANCE.messageBuilder(S2CMusicCommandPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .decoder(S2CMusicCommandPacket::new)
+                .encoder(S2CMusicCommandPacket::encode)
+                .consumerMainThread(S2CMusicCommandPacket::handle)
                 .add();
 
     }

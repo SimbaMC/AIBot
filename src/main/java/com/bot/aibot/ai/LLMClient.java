@@ -5,19 +5,16 @@ import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.events.MinecraftEvents;
 import com.bot.aibot.network.BotClient;
 import com.bot.aibot.network.PacketHandler;
-import com.bot.aibot.network.packet.S2CPlayMusicPacket;
-import com.bot.aibot.network.packet.S2CRequestSearchPacket;
+import com.bot.aibot.network.packet.S2CMusicCommandPacket;
 import com.bot.aibot.utils.ChineseUtils;
-import com.bot.aibot.utils.NeteaseApi;
+import com.bot.aibot.utils.HttpUtils;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.PacketDistributor;
 
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
@@ -26,10 +23,8 @@ import java.util.function.Consumer;
 
 public class LLMClient {
 
-    private static final HttpClient client = HttpClient.newHttpClient();
-
     /**
-     * 普通聊天功能（整合 AI 智能点歌）
+     * 智能聊天 + 指令解析
      */
     public static void chat(ServerPlayer player, String userMessage) {
         if (!BotConfig.SERVER.enableAI.get()) return;
@@ -39,56 +34,49 @@ public class LLMClient {
 
         String basePrompt = BotConfig.SERVER.aiPrompt.get();
 
-        // 动态拼接功能指令：强制 AI 补全歌手名以提高搜索精度
+        // --- 1. 构建全新的 System Prompt ---
         String systemPrompt = basePrompt +
-                "\n\n[核心功能指令]：" +
-                "\n. 【核心】请优化搜索词！如果玩家说中文译名，请优先转换为原语种名称，玩家也可能说的是一个网络热梗，请先检索后再返回歌曲名。" +
-                "\n. 如果玩家只提供了歌词或模糊信息，请根据你的知识库将其转换为 '歌手 - 歌名' 格式，以提高网易云搜索精度。" +
-                "\n- 如果玩家想点歌，请在回复末尾添加 'PLAY: 歌曲名'。" +
-                "\n- 如果玩家想点歌且明确提到“所有人”、“全服”、“广播”等，请在末尾加上 'BROADCAST: 歌曲名'。" +
-                "\n- 如果玩家想停止播放、太吵了、换一首或不想听了，请在回复末尾添加 'STOP: TRUE'。" +
-                "\n- 严禁在 PLAY: 或 STOP: 后添加任何引号、括号或书名号。" +
-                "\n- 保持你的个性化语气，指令行必须独立存在或位于回复最后。";
+                "\n\n[核心协议指令]：" +
+                "\n请严格遵守以下指令格式，将指令代码放在回复的【最后一行】。指令行不要包含其他标点符号。" +
+                "\n1. 搜歌（仅自己听）：回复 'ACTION: SEARCH: 歌名/关键词'" +
+                "\n2. 搜歌（全服广播）：如果用户强调“大家”、“全服”、“所有人”，回复 'ACTION: SEARCH_ALL: 歌名/关键词'" +
+                "\n3. 随机红心歌单：如果用户说“随便放点”、“放我的歌”、“来点我喜欢的”，回复 'ACTION: PLAY_MY_LIKE'" +
+                "\n4. 停止播放：回复 'ACTION: STOP'" +
+                "\n\n[示例]：" +
+                "\n用户：帮我放首周杰伦的歌。" +
+                "\n你的回复：根据你的个性回答。\nACTION: SEARCH: 周杰伦" +
+                "\n\n用户：随便来点音乐。" +
+                "\n你的回复：根据你的个性回答。\nACTION: PLAY_MY_LIKE" +
+                "\n- 保持你的个性化语气。";
 
         String userContent = "玩家[" + playerName + "]说: " + userMessage;
 
+        // 使用第一步封装的 HttpUtils (如果之前还没改 sendRequest，记得改一下)
         sendRequest(systemPrompt, userContent, 0.7, aiReply -> {
-            // --- DEBUG: 查看原始回复 ---
-            System.out.println(">>> [LLM DEBUG] 收到 AI 回复内容:\n" + aiReply);
+            // --- DEBUG ---
+            System.out.println(">>> [LLM] 原始回复: " + aiReply);
 
-            if (aiReply.contains("STOP: TRUE")) {
-                System.out.println(">>> [LLM DEBUG] 触发停止逻辑");
-                handleStopMusic(player);
+            // --- 2. 解析逻辑 ---
+            String chatContent = aiReply;
+            String commandLine = null;
+
+            // 从后往前找 ACTION: 标记
+            int actionIndex = aiReply.lastIndexOf("ACTION:");
+            if (actionIndex != -1) {
+                // 提取指令行
+                commandLine = aiReply.substring(actionIndex).trim();
+                // 截取聊天内容（去掉指令部分）
+                chatContent = aiReply.substring(0, actionIndex).trim();
             }
 
-            // 解析逻辑：同时处理 PLAY: 和 BROADCAST:
-            String[] lines = aiReply.split("\n");
-            for (String line : lines) {
-                String trimmedLine = line.trim();
-
-                // 识别广播点歌
-                if (trimmedLine.contains("BROADCAST:")) {
-                    String keyword = extractAndClean(trimmedLine, "BROADCAST:");
-                    System.out.println(">>> [LLM DEBUG] 触发广播点歌: [" + keyword + "]");
-                    if (!keyword.isEmpty()) {
-                        handleAiMusic(player, keyword, true); // true 代表全服广播
-                    }
-                }
-                // 识别普通点歌
-                else if (trimmedLine.contains("PLAY:")) {
-                    String keyword = extractAndClean(trimmedLine, "PLAY:");
-                    System.out.println(">>> [LLM DEBUG] 触发私享点歌: [" + keyword + "]");
-                    if (!keyword.isEmpty()) {
-                        handleAiMusic(player, keyword, false); // false 代表仅个人听
-                    }
-                }
+            // --- 3. 执行指令 ---
+            if (commandLine != null) {
+                executeCommand(player, commandLine);
             }
 
-            // 2. 过滤聊天显示：将所有指令关键字及其后面的内容全部切掉
-            String cleanReply = aiReply.replaceAll("(PLAY:|STOP:|BROADCAST:).*", "").trim();
-
-            if (!cleanReply.isEmpty()) {
-                replyToPlayer(player, cleanReply);
+            // --- 4. 发送聊天回复 ---
+            if (!chatContent.isEmpty()) {
+                replyToPlayer(player, chatContent);
             }
 
         }, errorMsg -> {
@@ -96,36 +84,63 @@ public class LLMClient {
         });
     }
     /**
-     * 提取并清洗关键词的工具方法
+     * 解析并分发指令
      */
-    private static String extractAndClean(String line, String prefix) {
-        int index = line.indexOf(prefix);
-        String raw = line.substring(index + prefix.length()).trim();
-        return raw.replace("\"", "").replace("'", "")
-                .replace("《", "").replace("》", "")
-                .replace("“", "").replace("”", "").trim();
+    private static void executeCommand(ServerPlayer player, String commandLine) {
+        System.out.println(">>> [LLM] 识别到指令: " + commandLine);
+
+        // 格式：ACTION: <TYPE>: <DATA>
+        // 例如：ACTION: SEARCH: 稻香
+        // 例如：ACTION: PLAY_MY_LIKE
+
+        try {
+            // 去掉前缀
+            String raw = commandLine.replace("ACTION:", "").trim();
+
+            if (raw.startsWith("STOP")) {
+                PacketHandler.sendToPlayer(new S2CMusicCommandPacket(S2CMusicCommandPacket.Action.STOP), player);
+            }
+            else if (raw.startsWith("PLAY_MY_LIKE")) {
+                PacketHandler.sendToPlayer(new S2CMusicCommandPacket(S2CMusicCommandPacket.Action.PLAY_MY_LIKE), player);
+            }
+            else if (raw.startsWith("SEARCH:")) {
+                String keyword = raw.replace("SEARCH:", "").trim();
+                // extra=0 代表私享
+                PacketHandler.sendToPlayer(new S2CMusicCommandPacket(
+                        S2CMusicCommandPacket.Action.SEARCH_AND_PLAY, keyword, 0), player);
+            }
+            else if (raw.startsWith("SEARCH_ALL:")) {
+                String keyword = raw.replace("SEARCH_ALL:", "").trim();
+                // extra=1 代表广播
+                PacketHandler.sendToPlayer(new S2CMusicCommandPacket(
+                        S2CMusicCommandPacket.Action.SEARCH_AND_PLAY, keyword, 1), player);
+            }
+
+        } catch (Exception e) {
+            System.err.println(">>> [LLM] 指令解析失败: " + e.getMessage());
+        }
     }
 
     /**
      * 【核心修改】异步点歌逻辑 -> 改为发送 S2CRequestSearchPacket
      */
     private static void handleAiMusic(ServerPlayer player, String keyword, boolean isGlobal) {
-        // 不需要 CompletableFuture 了，因为发包是非阻塞的
-        System.out.println(">>> [Music Debug] AI 发起搜索: [" + keyword + "], 模式: " + (isGlobal ? "全服" : "私享"));
+        System.out.println(">>> [Music Debug] AI 发起搜索: [" + keyword + "]");
 
-        // 1. 构造“帮我搜歌”的请求包
-        // 参数：关键词, 是否广播
-        S2CRequestSearchPacket packet = new S2CRequestSearchPacket(keyword, isGlobal);
+        // 使用新包 Action.SEARCH_AND_PLAY
+        // extra 参数我们约定：1代表全服，0代表私享 (目前客户端逻辑没用到这个区分，主要是汇报回去的时候用，先传1备用)
+        S2CMusicCommandPacket packet = new S2CMusicCommandPacket(
+                S2CMusicCommandPacket.Action.SEARCH_AND_PLAY,
+                keyword,
+                isGlobal ? 1 : 0
+        );
 
-        // 2. 发送给玩家客户端
         PacketHandler.sendToPlayer(packet, player);
-
     }
 
     private static void handleStopMusic(ServerPlayer player) {
-        // 复用你提供的 S2CMusicControlPacket，action 为 0 代表 Stop
-        com.bot.aibot.network.PacketHandler.sendToPlayer(
-                new com.bot.aibot.network.packet.S2CMusicControlPacket(0), player);
+        // 使用新包 Action.STOP
+        PacketHandler.sendToPlayer(new S2CMusicCommandPacket(S2CMusicCommandPacket.Action.STOP), player);
     }
 
     /**
@@ -190,7 +205,7 @@ public class LLMClient {
 
         CompletableFuture.runAsync(() -> {
             try {
-                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+                HttpResponse<String> response = HttpUtils.getClient().send(request, HttpResponse.BodyHandlers.ofString());
                 if (response.statusCode() == 200) {
                     JsonObject responseJson = JsonParser.parseString(response.body()).getAsJsonObject();
                     String content = responseJson.getAsJsonArray("choices")

@@ -21,6 +21,7 @@ import java.util.*;
 public class NeteaseApi {
 
     private static final String BASE_URL = "https://music.163.com";
+    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.45 Safari/537.36";
 
     // 1. Cookie 管理器
     private static final CookieManager cookieManager = new CookieManager();
@@ -28,16 +29,13 @@ public class NeteaseApi {
         cookieManager.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
     }
 
-    // 2. Client 初始化
+    // 2. 独立的 Client (必须独立，因为需要绑定 CookieManager)
     private static final HttpClient client = HttpClient.newBuilder()
             .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(Duration.ofSeconds(10))
             .cookieHandler(cookieManager)
-            .proxy(ProxySelector.getDefault()) // 建议改为 getDefault 以兼容系统代理，或者 keep null
+            .proxy(ProxySelector.getDefault())
             .build();
-
-    // 3. User-Agent
-    private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.45 Safari/537.36";
 
     // ================= 内部类 =================
     public static class LoginResult {
@@ -52,38 +50,20 @@ public class NeteaseApi {
         }
     }
 
-    // ================= 【核心新增】恢复登录状态 =================
+    // ================= Cookie 管理 =================
 
-    /**
-     * 从配置文件加载已保存的 Cookie，实现“免扫码登录”
-     */
     public static void loadCookies() {
         try {
-            // 1. 先初始化基础 Cookie (os=pc 等)
             initBaseCookie();
+            if (BotConfig.CLIENT == null) return;
 
-            // 2. 检查 Config 里有没有存货
-            // 【核心修正】这里必须用 BotConfig.CLIENT，因为 Cookie 移到了客户端配置
-            if (BotConfig.CLIENT == null) {
-                // 如果是服务端环境，CLIENT 可能为 null，直接返回防止崩溃
-                return;
-            }
-
-            // 获取 Cookie
             String savedCookie = BotConfig.CLIENT.neteaseCookie.get();
-
-            if (savedCookie == null || savedCookie.isEmpty()) {
-                // System.out.println(">>> [API] 未检测到历史 Cookie，请使用 /bot login 扫码登录。");
-                return;
-            }
+            if (savedCookie == null || savedCookie.isEmpty()) return;
 
             System.out.println(">>> [API] 正在恢复登录状态...");
-
-            // 3. 解析并注入到 cookieManager
-            URI uri = URI.create("https://music.163.com");
+            URI uri = URI.create(BASE_URL);
             CookieStore store = cookieManager.getCookieStore();
 
-            // 简单解析分号分隔的 Cookie 串
             String[] parts = savedCookie.split(";");
             for (String part : parts) {
                 String[] kv = part.trim().split("=", 2);
@@ -94,57 +74,68 @@ public class NeteaseApi {
                     store.add(uri, cookie);
                 }
             }
-
-            System.out.println(">>> [API] 登录状态恢复成功！(加载了 " + parts.length + " 个 Cookie 条目)");
-
+            System.out.println(">>> [API] 登录状态恢复成功！");
         } catch (Exception e) {
-            System.err.println(">>> [API] Cookie 恢复失败: " + e.getMessage());
             e.printStackTrace();
         }
-
     }
 
-    public static void setCookie(String cookieStr) {
-        if (cookieStr == null || cookieStr.isEmpty()) return;
+    private static void initBaseCookie() {
         try {
-            System.out.println(">>> [API] 正在刷新内存 Cookie...");
-            URI uri = URI.create("https://music.163.com");
-
-            // 解析并添加到当前的 cookieManager 中
-            String[] parts = cookieStr.split(";");
-            for (String part : parts) {
-                String[] kv = part.trim().split("=", 2);
-                if (kv.length == 2) {
-                    HttpCookie cookie = new HttpCookie(kv[0], kv[1]);
-                    cookie.setPath("/");
-                    cookie.setDomain(".music.163.com");
-                    cookieManager.getCookieStore().add(uri, cookie);
-                }
-            }
-            System.out.println(">>> [API] 内存 Cookie 刷新成功！");
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+            URI uri = URI.create(BASE_URL);
+            Map<String, List<String>> cookies = new HashMap<>();
+            cookies.put("Set-Cookie", List.of(
+                    "os=pc; Path=/; Domain=.music.163.com",
+                    "appver=2.7.1.198277; Path=/; Domain=.music.163.com"
+            ));
+            cookieManager.put(uri, cookies);
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
-    // ================= 4. 登录流程 (Mod Copy Mode) =================
+    // ================= 核心请求封装 (本次优化重点) =================
+
+    /**
+     * 通用底层请求方法
+     */
+    private static HttpResponse<String> sendInternal(String url, String postData) throws Exception {
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("User-Agent", USER_AGENT)
+                .header("Referer", BASE_URL)
+                .header("Accept", "*/*")
+                .header("Content-Type", "application/x-www-form-urlencoded");
+
+        if (postData != null) {
+            builder.POST(HttpRequest.BodyPublishers.ofString(postData));
+        } else {
+            builder.GET();
+        }
+
+        return client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    // 普通请求（返回 Body）
+    private static String requestRaw(String url, String formData) throws Exception {
+        return sendInternal(url, formData).body();
+    }
+
+    // 加密请求
+    private static String request(String url, Map<String, Object> data) throws Exception {
+        String jsonText = new com.google.gson.Gson().toJson(data);
+        Map<String, String> encrypted = encrypt(jsonText);
+        String formData = "params=" + URLEncoder.encode(encrypted.get("params"), StandardCharsets.UTF_8) +
+                "&encSecKey=" + URLEncoder.encode(encrypted.get("encSecKey"), StandardCharsets.UTF_8);
+        return requestRaw(url, formData);
+    }
+
+    // ================= 业务功能 =================
 
     public static String getLoginKey() {
-        System.out.println(">>> [Debug] 1. 获取 Key");
         try {
             initBaseCookie();
-            String url = "https://music.163.com/api/login/qrcode/unikey";
-            String jsonResp = requestRaw(url, "type=1");
-            System.out.println(">>> [Debug] Key Resp: " + jsonResp);
-
-            if (jsonResp == null) return null;
+            String jsonResp = requestRaw("https://music.163.com/api/login/qrcode/unikey", "type=1");
             JsonObject root = JsonParser.parseString(jsonResp).getAsJsonObject();
-
-            if (root.has("unikey")) {
-                return root.get("unikey").getAsString();
-            } else if (root.has("code") && root.get("code").getAsInt() == 200) {
-                return root.get("unikey").getAsString();
-            }
+            if (root.has("unikey")) return root.get("unikey").getAsString();
         } catch (Exception e) { e.printStackTrace(); }
         return null;
     }
@@ -157,161 +148,138 @@ public class NeteaseApi {
         try {
             String url = "https://music.163.com/api/login/qrcode/client/login";
             String formData = "key=" + key + "&type=1";
-            return requestRawForLogin(url, formData);
+
+            // 这里逻辑稍微特殊，需要处理 Set-Cookie，所以不直接调 requestRaw
+            HttpResponse<String> resp = sendInternal(url, formData);
+            String body = resp.body();
+
+            JsonObject root = JsonParser.parseString(body).getAsJsonObject();
+            int code = root.has("code") ? root.get("code").getAsInt() : 500;
+            String cookie = "";
+
+            if (code == 803) {
+                StringBuilder sb = new StringBuilder();
+                cookieManager.getCookieStore().getCookies().forEach(c ->
+                        sb.append(c.getName()).append("=").append(c.getValue()).append("; ")
+                );
+                cookie = sb.toString();
+                if (cookie.isEmpty() && root.has("cookie")) {
+                    cookie = root.get("cookie").getAsString();
+                }
+            }
+            return new LoginResult(code, cookie, root.has("message") ? root.get("message").getAsString() : "");
         } catch (Exception e) { e.printStackTrace(); }
         return new LoginResult(800, null, "接口异常");
     }
 
-    // ================= 5. 请求逻辑 =================
-
-    private static void initBaseCookie() {
-        try {
-            URI uri = URI.create("https://music.163.com");
-            Map<String, List<String>> cookies = new HashMap<>();
-            cookies.put("Set-Cookie", List.of(
-                    "os=pc; Path=/; Domain=.music.163.com",
-                    "appver=2.7.1.198277; Path=/; Domain=.music.163.com"
-            ));
-            cookieManager.put(uri, cookies);
-        } catch (Exception e) { e.printStackTrace(); }
-    }
-
-    private static String requestRaw(String url, String formData) throws Exception {
-        HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .header("User-Agent", USER_AGENT)
-                .header("Referer", "http://music.163.com")
-                .header("Accept", "*/*")
-                .header("Accept-Language", "zh-CN,zh;q=0.8,gl;q=0.6,zh-TW;q=0.4")
-                .header("Content-Type", "application/x-www-form-urlencoded");
-
-        if (formData != null) {
-            builder.POST(HttpRequest.BodyPublishers.ofString(formData));
-        } else {
-            builder.GET();
-        }
-
-        HttpResponse<String> resp = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-        return resp.body();
-    }
-
-    private static LoginResult requestRawForLogin(String url, String formData) throws Exception {
-        HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .header("User-Agent", USER_AGENT)
-                .header("Referer", "http://music.163.com")
-                .header("Accept", "*/*")
-                .header("Accept-Language", "zh-CN,zh;q=0.8,gl;q=0.6,zh-TW;q=0.4")
-                .header("Content-Type", "application/x-www-form-urlencoded");
-
-        if (formData != null) {
-            builder.POST(HttpRequest.BodyPublishers.ofString(formData));
-        } else {
-            builder.GET();
-        }
-
-        HttpResponse<String> resp = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
-        String body = resp.body();
-        // System.out.println(">>> [Debug-Check] " + body);
-
-        JsonObject root = JsonParser.parseString(body).getAsJsonObject();
-        int code = root.has("code") ? root.get("code").getAsInt() : 500;
-        String cookie = "";
-
-        if (code == 803) {
-            StringBuilder sb = new StringBuilder();
-            cookieManager.getCookieStore().getCookies().forEach(c -> {
-                sb.append(c.getName()).append("=").append(c.getValue()).append("; ");
-            });
-            cookie = sb.toString();
-            if (cookie.isEmpty() && root.has("cookie")) {
-                cookie = root.get("cookie").getAsString();
-            }
-        }
-        return new LoginResult(code, cookie, root.has("message") ? root.get("message").getAsString() : "");
-    }
-
-    // ================= 6. 搜索 (保留) =================
+    // 搜索 (返回第一首 ID)
     public static String search(String keyword) {
         try {
             Map<String, Object> data = new HashMap<>();
             data.put("s", keyword); data.put("type", 1); data.put("limit", 1); data.put("offset", 0); data.put("csrf_token", "");
             String jsonResp = request("https://music.163.com/weapi/cloudsearch/get/web", data);
-            if (jsonResp == null) return null;
             JsonObject root = JsonParser.parseString(jsonResp).getAsJsonObject();
-            if (root.has("result") && !root.get("result").isJsonNull() && root.getAsJsonObject("result").has("songs")) {
-                return root.getAsJsonObject("result").getAsJsonArray("songs").get(0).getAsJsonObject().get("id").getAsString();
+            if (root.has("result") && !root.get("result").isJsonNull()) {
+                JsonObject result = root.getAsJsonObject("result");
+                if(result.has("songs")) {
+                    return result.getAsJsonArray("songs").get(0).getAsJsonObject().get("id").getAsString();
+                }
             }
         } catch (Exception e) {} return null;
     }
 
+    // 获取播放链接
     public static String getSongUrl(String songId) {
         try {
             Map<String, Object> data = new HashMap<>();
             data.put("ids", "[" + songId + "]"); data.put("level", "standard"); data.put("encodeType", "mp3"); data.put("csrf_token", "");
             String jsonResp = request("https://music.163.com/weapi/song/enhance/player/url/v1", data);
-            if (jsonResp == null) return null;
             JsonObject root = JsonParser.parseString(jsonResp).getAsJsonObject();
-            if (root.get("code").getAsInt() == 200 && root.getAsJsonArray("data").size() > 0) return root.getAsJsonArray("data").get(0).getAsJsonObject().get("url").getAsString();
+            if (root.get("code").getAsInt() == 200) {
+                JsonArray arr = root.getAsJsonArray("data");
+                if(arr.size() > 0) return arr.get(0).getAsJsonObject().get("url").getAsString();
+            }
         } catch (Exception e) {} return null;
     }
 
-    private static String request(String url, Map<String, Object> data) throws Exception {
-        String jsonText = new com.google.gson.Gson().toJson(data);
-        Map<String, String> encrypted = encrypt(jsonText);
-        String formData = "params=" + URLEncoder.encode(encrypted.get("params"), StandardCharsets.UTF_8) +
-                "&encSecKey=" + URLEncoder.encode(encrypted.get("encSecKey"), StandardCharsets.UTF_8);
-        HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).header("Content-Type", "application/x-www-form-urlencoded").header("User-Agent", USER_AGENT).header("Referer", "https://music.163.com/").POST(HttpRequest.BodyPublishers.ofString(formData)).build();
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
-        return resp.body();
-    }
-    // 1. 获取当前登录用户的 UID
+    // 获取 UID
     public static long getMyUid() {
         try {
-            // 这个接口不需要加密，直接通过 Cookie 里的身份获取
             String jsonResp = requestRaw("https://music.163.com/api/nuser/account/get", null);
             JsonObject root = JsonParser.parseString(jsonResp).getAsJsonObject();
             if (root.has("account") && !root.get("account").isJsonNull()) {
                 return root.getAsJsonObject("account").get("id").getAsLong();
             }
-        } catch (Exception e) {
-            System.err.println(">>> [API] 获取 UID 失败: " + e.getMessage());
-        }
+        } catch (Exception e) { System.err.println(">>> [API] 获取 UID 失败: " + e.getMessage()); }
         return 0;
     }
-    // 2. 获取用户的歌单列表 (返回歌单 JSON 数组)
+
+    // 获取歌单列表
     public static JsonArray getUserPlaylists(long uid) {
         try {
             Map<String, Object> data = new HashMap<>();
-            data.put("uid", uid);
-            data.put("limit", 30); // 只拿前30个歌单
-            data.put("offset", 0);
-            data.put("csrf_token", "");
-
+            data.put("uid", uid); data.put("limit", 30); data.put("offset", 0); data.put("csrf_token", "");
             String jsonResp = request("https://music.163.com/weapi/user/playlist", data);
             JsonObject root = JsonParser.parseString(jsonResp).getAsJsonObject();
-            if (root.get("code").getAsInt() == 200) {
-                return root.getAsJsonArray("playlist");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+            if (root.get("code").getAsInt() == 200) return root.getAsJsonArray("playlist");
+        } catch (Exception e) { e.printStackTrace(); }
         return null;
     }
-    // 【新增】搜索并返回歌曲列表（用于 GUI 显示）
+
+    // 获取歌单内歌曲 ID
+    public static List<Long> getPlaylistSongIds(long playlistId) {
+        List<Long> ids = new ArrayList<>();
+        try {
+            Map<String, Object> data = new HashMap<>();
+            data.put("id", playlistId); data.put("n", 0); data.put("csrf_token", "");
+            String jsonResp = request("https://music.163.com/weapi/v6/playlist/detail", data);
+            JsonObject root = JsonParser.parseString(jsonResp).getAsJsonObject();
+            if (root.get("code").getAsInt() == 200) {
+                JsonArray trackIds = root.getAsJsonObject("playlist").getAsJsonArray("trackIds");
+                for (int i = 0; i < trackIds.size(); i++) {
+                    ids.add(trackIds.get(i).getAsJsonObject().get("id").getAsLong());
+                }
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        return ids;
+    }
+
+    // 批量获取详情
+    public static List<SongInfo> getSongsDetail(List<Long> songIds) {
+        List<SongInfo> list = new ArrayList<>();
+        if (songIds.isEmpty()) return list;
+        try {
+            Map<String, Object> data = new HashMap<>();
+            List<Map<String, Object>> cList = new ArrayList<>();
+            for (Long id : songIds) {
+                Map<String, Object> item = new HashMap<>(); item.put("id", id); cList.add(item);
+            }
+            data.put("c", new com.google.gson.Gson().toJson(cList)); data.put("csrf_token", "");
+            String jsonResp = request("https://music.163.com/weapi/v3/song/detail", data);
+            JsonObject root = JsonParser.parseString(jsonResp).getAsJsonObject();
+            if (root.has("songs")) {
+                JsonArray songs = root.getAsJsonArray("songs");
+                for (int i = 0; i < songs.size(); i++) {
+                    JsonObject song = songs.get(i).getAsJsonObject();
+                    String id = song.get("id").getAsString();
+                    String name = song.get("name").getAsString();
+                    long duration = song.has("dt") ? song.get("dt").getAsLong() : 0;
+                    String artist = "未知";
+                    if (song.has("ar")) artist = song.getAsJsonArray("ar").get(0).getAsJsonObject().get("name").getAsString();
+                    list.add(new SongInfo(id, name, artist, duration));
+                }
+            }
+        } catch (Exception e) { e.printStackTrace(); }
+        return list;
+    }
+
+    // GUI 搜索列表 (新增)
     public static List<SongInfo> searchList(String keyword) {
         List<SongInfo> list = new ArrayList<>();
         try {
             Map<String, Object> data = new HashMap<>();
-            data.put("s", keyword);
-            data.put("type", 1);
-            data.put("limit", 20); // 搜索前20首
-            data.put("offset", 0);
-            data.put("csrf_token", "");
-
+            data.put("s", keyword); data.put("type", 1); data.put("limit", 20); data.put("offset", 0); data.put("csrf_token", "");
             String jsonResp = request("https://music.163.com/weapi/cloudsearch/get/web", data);
-            if (jsonResp == null) return list;
-
             JsonObject root = JsonParser.parseString(jsonResp).getAsJsonObject();
             if (root.has("result") && !root.get("result").isJsonNull()) {
                 JsonObject result = root.getAsJsonObject("result");
@@ -321,94 +289,21 @@ public class NeteaseApi {
                         JsonObject song = songs.get(i).getAsJsonObject();
                         String id = song.get("id").getAsString();
                         String name = song.get("name").getAsString();
-
-                        // 【新增】获取时长 (默认0)
                         long duration = song.has("dt") ? song.get("dt").getAsLong() : 0;
-
-                        // 获取歌手名 (可能有多个)
                         String artist = "未知歌手";
                         if (song.has("ar")) {
                             JsonArray ar = song.getAsJsonArray("ar");
-                            if (ar.size() > 0) {
-                                artist = ar.get(0).getAsJsonObject().get("name").getAsString();
-                            }
+                            if (ar.size() > 0) artist = ar.get(0).getAsJsonObject().get("name").getAsString();
                         }
-                        list.add(new SongInfo(id, name, artist,duration));
+                        list.add(new SongInfo(id, name, artist, duration));
                     }
                 }
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        } catch (Exception e) { e.printStackTrace(); }
         return list;
     }
 
-    // 3. 获取歌单里的所有歌曲 ID (返回 ID 列表)
-    public static List<Long> getPlaylistSongIds(long playlistId) {
-        List<Long> ids = new java.util.ArrayList<>();
-        try {
-            Map<String, Object> data = new HashMap<>();
-            data.put("id", playlistId);
-            data.put("n", 0);
-            data.put("csrf_token", "");
-
-            String jsonResp = request("https://music.163.com/weapi/v6/playlist/detail", data);
-            JsonObject root = JsonParser.parseString(jsonResp).getAsJsonObject();
-
-            if (root.get("code").getAsInt() == 200) {
-                JsonArray trackIds = root.getAsJsonObject("playlist").getAsJsonArray("trackIds");
-                for (int i = 0; i < trackIds.size(); i++) {
-                    ids.add(trackIds.get(i).getAsJsonObject().get("id").getAsLong());
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        System.out.println(">>> [API] 获取到歌单 ID 数: " + ids.size());
-        return ids;
-    }
-    // 2. 【新增】批量获取歌曲详情 (用于分页显示，一次查 50-100 首)
-    public static List<SongInfo> getSongsDetail(List<Long> songIds) {
-        List<SongInfo> list = new ArrayList<>();
-        if (songIds.isEmpty()) return list;
-
-        try {
-            // 构造 ids 参数: "[123, 456, 789]"
-            Map<String, Object> data = new HashMap<>();
-            List<Map<String, Object>> cList = new ArrayList<>();
-            for (Long id : songIds) {
-                Map<String, Object> item = new HashMap<>();
-                item.put("id", id);
-                cList.add(item);
-            }
-            data.put("c", new com.google.gson.Gson().toJson(cList));
-            data.put("csrf_token", "");
-
-            // 调用歌曲详情接口
-            String jsonResp = request("https://music.163.com/weapi/v3/song/detail", data);
-            JsonObject root = JsonParser.parseString(jsonResp).getAsJsonObject();
-
-            if (root.has("songs")) {
-                JsonArray songs = root.getAsJsonArray("songs");
-                for (int i = 0; i < songs.size(); i++) {
-                    JsonObject song = songs.get(i).getAsJsonObject();
-                    String id = song.get("id").getAsString();
-                    String name = song.get("name").getAsString();
-                    // 【新增】获取时长
-                    long duration = song.has("dt") ? song.get("dt").getAsLong() : 0;
-                    String artist = "未知";
-                    if (song.has("ar")) {
-                        artist = song.getAsJsonArray("ar").get(0).getAsJsonObject().get("name").getAsString();
-                    }
-                    list.add(new SongInfo(id, name, artist,duration));
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return list;
-    }
-    // 加密部分保持不变...
+    // ================= 加密算法 (保持不变) =================
     private static final String MODULUS = "00e0b509f6259df8642dbc35662901477df22677ec152b5ff68ace615bb7b725152b3ab17a876aea8a5aa76d2e417629ec4ee341f56135fccf695280104e0312ecbda92557c93870114af6c9d05c4f7f0c3685b7a46bee255932575cce10b424d813cfe4875d3e82047b97ddef52741d546b8e289dc6935b3ece0462db0a22b8e7";
     private static final String NONCE = "0CoJUm6Qyw8W8jud";
     private static final String PUB_KEY = "010001";
