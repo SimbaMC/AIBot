@@ -11,6 +11,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 public class BotClient {
+
+    public volatile boolean isLoggingIn = false;
+
     // 单例模式：确保全局只有一个 Client 管理器
     private static final BotClient INSTANCE = new BotClient();
     public static BotClient getInstance() { return INSTANCE; }

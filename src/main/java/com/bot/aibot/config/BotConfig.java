@@ -16,10 +16,19 @@ public class BotConfig {
     public static final ServerConfig SERVER;
     public static final ForgeConfigSpec SERVER_SPEC;
 
+    // 【新增】客户端配置
+    public static final ClientConfig CLIENT;
+    public static final ForgeConfigSpec CLIENT_SPEC;
+
     static {
         final Pair<ServerConfig, ForgeConfigSpec> specPair = new ForgeConfigSpec.Builder().configure(ServerConfig::new);
         SERVER_SPEC = specPair.getRight();
         SERVER = specPair.getLeft();
+
+        // 【新增】初始化客户端配置
+        final Pair<ClientConfig, ForgeConfigSpec> clientPair = new ForgeConfigSpec.Builder().configure(ClientConfig::new);
+        CLIENT_SPEC = clientPair.getRight();
+        CLIENT = clientPair.getLeft();
     }
 
     public static class ServerConfig {
@@ -138,6 +147,20 @@ public class BotConfig {
                     .define("start_msg", "[%prefix%] 服务器已连接，Bot 正在运行！");
 
             builder.pop(); // 只需要这一个 pop
+        }
+    }
+
+    // 【新增】客户端配置类
+    public static class ClientConfig {
+        public final ForgeConfigSpec.ConfigValue<String> neteaseCookie;
+
+        public ClientConfig(ForgeConfigSpec.Builder builder) {
+            builder.comment("客户端设置").push("client");
+
+            neteaseCookie = builder.comment("本地网易云 Cookie (自动保存)")
+                    .define("netease_cookie", "");
+
+            builder.pop();
         }
     }
 

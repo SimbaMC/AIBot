@@ -27,6 +27,7 @@ public class BottyMod {
     public BottyMod() {
         // 1. 注册配置
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, BotConfig.SERVER_SPEC);
+        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, BotConfig.CLIENT_SPEC);
 
         // 2. 注册自己的事件
         MinecraftForge.EVENT_BUS.register(this);

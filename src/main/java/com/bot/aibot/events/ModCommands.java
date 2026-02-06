@@ -80,6 +80,17 @@ public class ModCommands {
                         .then(Commands.literal("login")
                                 .executes(new LoginCommand())
                         )
+                        .then(Commands.literal("stoplogin")
+                                .executes(context -> {
+                                    // 获取执行指令的玩家
+                                    if (context.getSource().getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+                                        // 发送停止包给该玩家的客户端
+                                        PacketHandler.sendToPlayer(new com.bot.aibot.network.packet.S2CStopLoginPacket(), player);
+                                        context.getSource().sendSystemMessage(Component.literal("§7[Bot] 已向您的客户端发送终止信号。"));
+                                    }
+                                    return 1;
+                                })
+                        )
         );
     }
 }

@@ -1,7 +1,6 @@
 package com.bot.aibot.network;
 
-import com.bot.aibot.network.packet.S2CMusicControlPacket;
-import com.bot.aibot.network.packet.S2CPlayMusicPacket;
+import com.bot.aibot.network.packet.*;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkDirection;
@@ -31,6 +30,12 @@ public class PacketHandler {
                 .encoder(S2CMusicControlPacket::encode)
                 .consumerMainThread(S2CMusicControlPacket::handle)
                 .add();
+
+        // 【新增】注册新包
+        INSTANCE.registerMessage(id++, S2CRequestSearchPacket.class, S2CRequestSearchPacket::encode, S2CRequestSearchPacket::new, S2CRequestSearchPacket::handle);
+        INSTANCE.registerMessage(id++, C2SReportMusicPacket.class, C2SReportMusicPacket::encode, C2SReportMusicPacket::new, C2SReportMusicPacket::handle);
+
+        INSTANCE.registerMessage(id++, S2CStopLoginPacket.class, S2CStopLoginPacket::encode, S2CStopLoginPacket::new, S2CStopLoginPacket::handle);
     }
 
     // --- 新增以下方法 ---

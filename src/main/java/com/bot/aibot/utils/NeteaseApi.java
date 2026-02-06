@@ -97,6 +97,29 @@ public class NeteaseApi {
             System.err.println(">>> [API] Cookie 恢复失败: " + e.getMessage());
             e.printStackTrace();
         }
+
+    }
+    public static void setCookie(String cookieStr) {
+        if (cookieStr == null || cookieStr.isEmpty()) return;
+        try {
+            System.out.println(">>> [API] 正在刷新内存 Cookie...");
+            URI uri = URI.create("https://music.163.com");
+
+            // 解析并添加到当前的 cookieManager 中
+            String[] parts = cookieStr.split(";");
+            for (String part : parts) {
+                String[] kv = part.trim().split("=", 2);
+                if (kv.length == 2) {
+                    HttpCookie cookie = new HttpCookie(kv[0], kv[1]);
+                    cookie.setPath("/");
+                    cookie.setDomain(".music.163.com");
+                    cookieManager.getCookieStore().add(uri, cookie);
+                }
+            }
+            System.out.println(">>> [API] 内存 Cookie 刷新成功！");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     // ================= 4. 登录流程 (Mod Copy Mode) =================
