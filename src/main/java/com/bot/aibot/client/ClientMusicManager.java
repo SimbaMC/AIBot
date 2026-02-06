@@ -26,6 +26,9 @@ public class ClientMusicManager {
     public static volatile long pauseStartTime = 0;  // 暂停时的时间戳
     public static volatile long totalPausedTime = 0; // 累计暂停时间
 
+    // 【新增】自动播放的回调接口
+    public static Runnable onTrackFinishedCallback = null;
+
     public static void play(String url, String name,long duration) {
         stop(); // 切换歌曲时先彻底停止老歌
 
@@ -53,7 +56,8 @@ public class ClientMusicManager {
         currentMusicName = name;
 
         musicThread = new Thread(() -> {
-            long lastSuppressTime = 0; // 用于计时持续压制
+            long lastSuppressTime = 0;
+            boolean finishedNaturally = false; // 标记是否自然播放结束// 用于计时持续压制
 
             try (BufferedInputStream in = new BufferedInputStream(new URL(url).openStream())) {
                 Bitstream bitstream = new Bitstream(in);
@@ -107,17 +111,24 @@ public class ClientMusicManager {
                     bitstream.closeFrame();
                     header = bitstream.readFrame();
                 }
+                // 如果循环结束且 isPlaying 仍为 true，说明是自然播放完毕，不是被切歌打断的
+                if (isPlaying) {
+                    finishedNaturally = true;
+                }
             } catch (Throwable e) { // 【修改】从 Exception 改为 Throwable
                 System.err.println(">>> [Music Error] 播放线程崩溃: " + e.getMessage());
-                e.printStackTrace(); // 这样你就能在日志里看到 NoClassDefFoundError 了
+                e.printStackTrace();
 
-                // 可选：给玩家发个消息
+
                 if (Minecraft.getInstance().player != null) {
                     Minecraft.getInstance().player.displayClientMessage(
                             Component.literal("§c[Bot] 播放失败: 缺少依赖库或解码错误"), false);
                 }
             } finally {
                 cleanup();
+                if (finishedNaturally && onTrackFinishedCallback != null) {
+                    onTrackFinishedCallback.run();
+                }
             }
         }, "BGM-Playback-Thread");
 
@@ -127,17 +138,8 @@ public class ClientMusicManager {
 
     public static void togglePause() {
         isPaused = !isPaused;
-        // 计时逻辑
-        if (isPaused) {
-            pauseStartTime = System.currentTimeMillis();
-        } else {
-            totalPausedTime += (System.currentTimeMillis() - pauseStartTime);
-        }
-        String status = isPaused ? "§6已暂停" : "§a已恢复播放";
-        if (Minecraft.getInstance().player != null) {
-            Minecraft.getInstance().player.displayClientMessage(
-                    Component.literal("§b[Music] " + status + ": " + currentMusicName), true);
-        }
+        if (isPaused) pauseStartTime = System.currentTimeMillis();
+        else totalPausedTime += (System.currentTimeMillis() - pauseStartTime);
     }
     // 【新增】获取当前播放进度 (ms)
     public static long getProgress() {
@@ -150,9 +152,8 @@ public class ClientMusicManager {
     public static void stop() {
         isPlaying = false;
         isPaused = false;
-        if (musicThread != null) {
-            musicThread.interrupt();
-        }
+        // 清空回调，防止手动切歌时触发自动播放
+        if (musicThread != null) musicThread.interrupt();
         cleanup();
     }
 

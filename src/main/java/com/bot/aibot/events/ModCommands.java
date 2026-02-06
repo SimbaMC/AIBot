@@ -55,14 +55,7 @@ public class ModCommands {
                                         })
                                 )
                         )
-                        .then(Commands.literal("play")
-                                // 分支 A: /bot play all <keyword> -> 强制广播
-                                .then(Commands.literal("all")
-                                        .then(Commands.argument("keyword", StringArgumentType.greedyString())
-                                                .executes(new PlayCommand(true)))) // 需要给 PlayCommand 加个构造函数
-                                // 分支 B: /bot play <keyword> -> 走原有的自动判断逻辑
-                                .then(Commands.argument("keyword", StringArgumentType.greedyString())
-                                        .executes(new PlayCommand(false))))
+
 
                         .then(Commands.literal("stop")
                                 .executes(context -> {
@@ -78,43 +71,11 @@ public class ModCommands {
                         )
 
 
-                        .then(Commands.literal("login")
-                                .executes(new LoginCommand())
-                        )
-                        .then(Commands.literal("stoplogin")
-                                .executes(context -> {
-                                    // 获取执行指令的玩家
-                                    if (context.getSource().getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
-                                        // 发送停止包给该玩家的客户端
-                                        PacketHandler.sendToPlayer(new com.bot.aibot.network.packet.S2CStopLoginPacket(), player);
-                                        context.getSource().sendSystemMessage(Component.literal("§7[Bot] 已向您的客户端发送终止信号。"));
-                                    }
-                                    return 1;
-                                })
-                        )
-
                         // 指令: /bot gui (打开界面)
                         .then(Commands.literal("gui")
                                 .executes(context -> {
                                     // 发送 ACTION="OPEN_GUI" 给玩家
                                     PacketHandler.sendToPlayer(new S2CRequestActionPacket("OPEN_GUI"), context.getSource().getPlayerOrException());
-                                    return 1;
-                                })
-                        )
-
-                        // 指令: /bot mine (查看歌单)
-                        .then(Commands.literal("mine")
-                                .executes(context -> {
-                                    PacketHandler.sendToPlayer(new S2CRequestActionPacket("MINE"), context.getSource().getPlayerOrException());
-                                    return 1;
-                                })
-                        )
-
-                        // 指令: /bot mylike (随机红心)
-                        .then(Commands.literal("mylike")
-                                .executes(context -> {
-                                    context.getSource().sendSuccess(() -> Component.literal("§b[Bot] 正在前往您的客户端抽取幸运歌曲..."), false);
-                                    PacketHandler.sendToPlayer(new S2CRequestActionPacket("MYLIKE"), context.getSource().getPlayerOrException());
                                     return 1;
                                 })
                         )

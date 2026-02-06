@@ -17,53 +17,50 @@ import net.minecraft.network.chat.Component;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
+import java.util.Random;
 
 public class MusicPlayerScreen extends Screen {
 
-    // === 窗口尺寸 (加高到 240 以容纳底部控件) ===
     private final int WINDOW_WIDTH = 340;
     private final int WINDOW_HEIGHT = 240;
     private int leftPos, topPos;
 
-    // === 界面状态机 ===
     private enum ScreenState { PLAYER, LOGIN_PROMPT, LOGIN_QR }
     private ScreenState currentState = ScreenState.LOGIN_PROMPT;
 
-    // === 静态缓存 (实现“记忆”功能) ===
-    // static 保证关闭界面后数据不丢失
-    private static List<Long> CACHED_ALL_IDS = null;      // 缓存所有歌曲ID
-    private static List<SongInfo> CACHED_CURRENT_LIST = null; // 缓存当前页歌曲详情
-    private static int CACHED_PAGE = 0;                   // 缓存页码
-    private static Tab CACHED_TAB = Tab.SEARCH;           // 缓存标签页
-    private static boolean CACHED_BROADCAST_MODE = false; // 缓存广播模式
-    private static boolean HAS_CHECKED_LOGIN = false;     // 标记是否已检测过登录
+    // === 静态缓存 ===
+    private static List<Long> CACHED_ALL_IDS = null;
+    private static List<SongInfo> CACHED_CURRENT_LIST = null;
+    private static int CACHED_PAGE = 0;
+    private static Tab CACHED_TAB = Tab.SEARCH;
+    private static boolean CACHED_BROADCAST_MODE = false;
+    // 【修复 Bug 1】删除了 HAS_CHECKED_LOGIN 静态变量，防止状态死锁
 
-    // === 播放器状态 ===
     private enum Tab { SEARCH, PLAYLIST }
     private Tab currentTab = Tab.SEARCH;
     private boolean isBroadcastMode = false;
 
-    // === 控件 ===
+    // 控件
     private EditBox searchBox;
     private SongListWidget songList;
     private FlatButton btnSearch, btnLoadPlaylist, btnPrev, btnNext;
-    private FlatButton btnToggle, btnStop, btnMode;
+    private FlatButton btnToggle, btnStop, btnMode, btnRandom; // 新增随机按钮
     private FlatButton btnStartLogin, btnCancelLogin;
 
-    // === 登录逻辑变量 ===
+    // 登录变量
     private QrCode qrCodeCache;
     private String loginKey;
     private Thread loginThread;
     private String loginStatusText = "等待获取二维码...";
     private boolean isQrLoading = false;
 
-    // === 数据 ===
+    // 数据
     private List<Long> allSongIdsCache;
     private int currentPage = 0;
     private final int PAGE_SIZE = 50;
     private Component statusText = Component.empty();
 
-    // === 配色 ===
+    // 颜色
     private static final int COLOR_BG = 0xCC101010;
     private static final int COLOR_HEADER = 0xFF000000;
     private static final int COLOR_ACCENT = 0xFF2ECC71;
@@ -80,16 +77,18 @@ public class MusicPlayerScreen extends Screen {
         this.leftPos = (this.width - WINDOW_WIDTH) / 2;
         this.topPos = (this.height - WINDOW_HEIGHT) / 2;
 
-        // 1. 自动登录检测 (只在第一次打开时检测)
-        if (!HAS_CHECKED_LOGIN) {
-            NeteaseApi.loadCookies();
-            if (NeteaseApi.getMyUid() > 0) {
-                currentState = ScreenState.PLAYER;
-            } else {
-                currentState = ScreenState.LOGIN_PROMPT;
-            }
-            HAS_CHECKED_LOGIN = true;
+        // 【修复 Bug 1】每次打开都重新检查登录状态
+        // 1. 先加载 Cookie
+        NeteaseApi.loadCookies();
+        // 2. 简单检查 UID (如果已登录，这个检查是毫秒级的)
+        if (NeteaseApi.getMyUid() > 0) {
+            currentState = ScreenState.PLAYER;
+        } else {
+            currentState = ScreenState.LOGIN_PROMPT;
         }
+
+        // 设置自动播放回调
+        ClientMusicManager.onTrackFinishedCallback = this::autoPlayNext;
 
         this.clearWidgets();
         if (currentState == ScreenState.PLAYER) {
@@ -101,16 +100,31 @@ public class MusicPlayerScreen extends Screen {
         }
     }
 
+    // === 【新增】自动播放逻辑 ===
+    private void autoPlayNext() {
+        // 如果当前没有缓存列表，无法自动播放
+        if (CACHED_CURRENT_LIST == null || CACHED_CURRENT_LIST.isEmpty()) return;
+
+        // 随机选择一首 (或者是顺序播放，这里用随机比较适合“听歌”场景)
+        // 既然用户有随机播放的需求，我们就默认随机下一首，增加趣味性
+        int nextIndex = new Random().nextInt(CACHED_CURRENT_LIST.size());
+        SongInfo nextSong = CACHED_CURRENT_LIST.get(nextIndex);
+
+        System.out.println(">>> [AutoPlay] 自动播放下一首: " + nextSong.name);
+
+        // 执行播放逻辑 (复用 playLogic)
+        // 注意：这里是在子线程回调的，playLogic 内部会处理线程安全，但为了保险，我们只调用逻辑部分
+        playSong(nextSong);
+    }
+
     private void initPlayerInterface() {
         int contentTop = topPos + 35;
 
-        // --- 恢复缓存状态 ---
         if (CACHED_TAB != null) this.currentTab = CACHED_TAB;
         if (CACHED_ALL_IDS != null) this.allSongIdsCache = CACHED_ALL_IDS;
         this.currentPage = CACHED_PAGE;
         this.isBroadcastMode = CACHED_BROADCAST_MODE;
 
-        // 搜索栏
         this.searchBox = new EditBox(this.font, leftPos + 10, contentTop + 10, 200, 18, Component.literal("搜索"));
         this.searchBox.setBordered(false);
         this.searchBox.setTextColor(0xFFFFFF);
@@ -123,9 +137,7 @@ public class MusicPlayerScreen extends Screen {
         this.btnLoadPlaylist.visible = false;
         this.addRenderableWidget(this.btnLoadPlaylist);
 
-        // --- 底部控制栏布局调整 ---
-        // 我们给底部预留 65px (从 175 到 240)
-        // 按钮行 Y = 210 (Height 20) -> 230
+        // --- 底部控制栏 ---
         int buttonsY = topPos + WINDOW_HEIGHT - 30;
 
         this.btnToggle = new FlatButton(leftPos + 10, buttonsY, 25, 20, "||", b -> PacketHandler.sendToServer(new C2SMusicActionPacket(1)));
@@ -136,11 +148,15 @@ public class MusicPlayerScreen extends Screen {
 
         this.btnMode = new FlatButton(leftPos + 75, buttonsY, 60, 20, "🎧 私享", b -> {
             isBroadcastMode = !isBroadcastMode;
-            CACHED_BROADCAST_MODE = isBroadcastMode; // 更新缓存
+            CACHED_BROADCAST_MODE = isBroadcastMode;
             updateModeButton();
         });
         updateModeButton();
         this.addRenderableWidget(this.btnMode);
+
+        // 【新增】随机播放按钮
+        this.btnRandom = new FlatButton(leftPos + 140, buttonsY, 40, 20, "🎲", b -> playRandomSong());
+        this.addRenderableWidget(this.btnRandom);
 
         this.btnPrev = new FlatButton(leftPos + WINDOW_WIDTH - 90, buttonsY, 35, 20, "<", b -> changePage(-1));
         this.btnNext = new FlatButton(leftPos + WINDOW_WIDTH - 50, buttonsY, 35, 20, ">", b -> changePage(1));
@@ -153,27 +169,50 @@ public class MusicPlayerScreen extends Screen {
         this.addRenderableWidget(this.btnPrev);
         this.addRenderableWidget(this.btnNext);
 
-        // --- 列表区域 ---
-        // 列表结束位置 = 底部按钮上方 - 进度条高度 - 文字高度 - 间隙
-        // 设列表底部为 Y = 170 (Window H = 240)
-        // listY = 75. ListH = 95.
         int listY = contentTop + 40;
-        int listH = WINDOW_HEIGHT - 35 - 40 - 65; // 预留 65px 给底部
-
+        int listH = WINDOW_HEIGHT - 35 - 40 - 65;
         this.songList = new SongListWidget(this.minecraft, WINDOW_WIDTH - 20, listH, listY);
         this.songList.setLeftPos(leftPos + 10);
         this.addWidget(this.songList);
 
-        // 恢复列表显示
         if (CACHED_CURRENT_LIST != null && !CACHED_CURRENT_LIST.isEmpty()) {
             this.songList.refreshList(CACHED_CURRENT_LIST);
         }
-
         updateTabVisibility();
     }
 
-    // ... initLoginPromptInterface, initLoginQrInterface, startLoginProcess ...
-    // (这部分逻辑未变，省略以节省篇幅，请直接保留你代码中已有的部分)
+    // 【新增】随机播放一首当前列表的歌
+    private void playRandomSong() {
+        if (songList.children().isEmpty()) {
+            statusText = Component.literal("列表为空，无法随机");
+            return;
+        }
+        int index = new Random().nextInt(songList.children().size());
+        SongListWidget.SongEntry entry = songList.children().get(index);
+        // 调用条目的点击逻辑
+        entry.playLogic(entry.song);
+    }
+
+    // 【核心】统一播放逻辑 (供点击、随机、自动播放调用)
+    // 把它提取出来，方便复用
+    private void playSong(SongInfo song) {
+        String modeText = isBroadcastMode ? "§c[全服广播]" : "§a[私享模式]";
+        new Thread(() -> {
+            String url = NeteaseApi.getSongUrl(song.id);
+            if (url == null) {
+                Minecraft.getInstance().execute(() -> Minecraft.getInstance().player.sendSystemMessage(Component.literal("§c播放失败: VIP/无版权")));
+                return;
+            }
+            // 【修复 Bug 2】随机/自动播放也必须遵守当前的广播模式
+            if (isBroadcastMode) {
+                PacketHandler.sendToServer(new C2SReportMusicPacket(url, song.name + " - " + song.artist, song.duration));
+            } else {
+                Minecraft.getInstance().execute(() -> ClientMusicManager.play(url, song.name + " - " + song.artist, song.duration));
+            }
+        }).start();
+    }
+
+    // ... (initLoginPromptInterface, initLoginQrInterface, startLoginProcess, stopLoginProcess 保持不变) ...
     private void initLoginPromptInterface() {
         this.btnStartLogin = new FlatButton(leftPos + (WINDOW_WIDTH - 120) / 2, topPos + (WINDOW_HEIGHT - 30) / 2, 120, 30, "扫码登录网易云", b -> {
             currentState = ScreenState.LOGIN_QR;
@@ -182,7 +221,6 @@ public class MusicPlayerScreen extends Screen {
         });
         this.addRenderableWidget(this.btnStartLogin);
     }
-
     private void initLoginQrInterface() {
         this.btnCancelLogin = new FlatButton(leftPos + (WINDOW_WIDTH - 80) / 2, topPos + WINDOW_HEIGHT - 40, 80, 20, "取消", b -> {
             stopLoginProcess();
@@ -191,7 +229,6 @@ public class MusicPlayerScreen extends Screen {
         });
         this.addRenderableWidget(this.btnCancelLogin);
     }
-
     private void startLoginProcess() {
         if (loginThread != null && loginThread.isAlive()) return;
         isQrLoading = true;
@@ -199,14 +236,11 @@ public class MusicPlayerScreen extends Screen {
         loginThread = new Thread(() -> {
             try {
                 loginKey = NeteaseApi.getLoginKey();
-                if (loginKey == null) {
-                    loginStatusText = "§c获取 Key 失败"; return;
-                }
+                if (loginKey == null) { loginStatusText = "§c获取 Key 失败"; return; }
                 String url = NeteaseApi.getLoginQrUrl(loginKey);
                 this.qrCodeCache = QrCode.encodeText(url, QrCode.Ecc.MEDIUM);
                 isQrLoading = false;
                 loginStatusText = "请使用网易云 APP 扫码";
-
                 while (currentState == ScreenState.LOGIN_QR) {
                     if (this.minecraft == null) break;
                     NeteaseApi.LoginResult result = NeteaseApi.checkLoginStatus(loginKey);
@@ -218,8 +252,7 @@ public class MusicPlayerScreen extends Screen {
                         NeteaseApi.loadCookies();
                         Minecraft.getInstance().execute(() -> {
                             currentState = ScreenState.PLAYER;
-                            CACHED_ALL_IDS = null;
-                            CACHED_CURRENT_LIST = null;
+                            CACHED_ALL_IDS = null; CACHED_CURRENT_LIST = null;
                             loadMyPlaylist();
                             init();
                         });
@@ -241,9 +274,8 @@ public class MusicPlayerScreen extends Screen {
 
     private void switchTab(Tab tab) {
         this.currentTab = tab;
-        CACHED_TAB = tab; // 更新缓存
+        CACHED_TAB = tab;
         updateTabVisibility();
-        // 如果切回歌单且有缓存，恢复显示
         if (tab == Tab.PLAYLIST && CACHED_CURRENT_LIST != null && songList.children().isEmpty()) {
             this.songList.refreshList(CACHED_CURRENT_LIST);
         }
@@ -267,7 +299,7 @@ public class MusicPlayerScreen extends Screen {
             List<SongInfo> res = NeteaseApi.searchList(k);
             Minecraft.getInstance().execute(() -> {
                 songList.refreshList(res);
-                CACHED_CURRENT_LIST = res; // 更新缓存
+                CACHED_CURRENT_LIST = res;
                 statusText = Component.literal("找到 " + res.size() + " 首歌曲");
             });
         }).start();
@@ -280,7 +312,6 @@ public class MusicPlayerScreen extends Screen {
             if (uid == 0) {
                 Minecraft.getInstance().execute(() -> {
                     currentState = ScreenState.LOGIN_PROMPT;
-                    HAS_CHECKED_LOGIN = false;
                     init();
                 });
                 return;
@@ -289,17 +320,15 @@ public class MusicPlayerScreen extends Screen {
             if (pl != null && pl.size() > 0) {
                 long fid = pl.get(0).getAsJsonObject().get("id").getAsLong();
                 allSongIdsCache = NeteaseApi.getPlaylistSongIds(fid);
-                CACHED_ALL_IDS = allSongIdsCache; // 更新缓存
-                currentPage = 0;
-                CACHED_PAGE = 0;
+                CACHED_ALL_IDS = allSongIdsCache;
+                currentPage = 0; CACHED_PAGE = 0;
                 loadCurrentPageSongs();
             }
         }).start();
     }
 
     private void changePage(int off) {
-        currentPage += off;
-        CACHED_PAGE = currentPage; // 更新缓存
+        currentPage += off; CACHED_PAGE = currentPage;
         loadCurrentPageSongs();
     }
 
@@ -312,7 +341,7 @@ public class MusicPlayerScreen extends Screen {
             List<SongInfo> d = NeteaseApi.getSongsDetail(allSongIdsCache.subList(s, e));
             Minecraft.getInstance().execute(() -> {
                 songList.refreshList(d);
-                CACHED_CURRENT_LIST = d; // 更新缓存
+                CACHED_CURRENT_LIST = d;
                 btnPrev.active = currentPage > 0;
                 btnNext.active = e < allSongIdsCache.size();
                 songList.setScrollAmount(0);
@@ -321,7 +350,7 @@ public class MusicPlayerScreen extends Screen {
         }).start();
     }
 
-    // === 渲染 ===
+    // ... (render, renderProgressBar, renderTab 保持不变) ...
     @Override
     public void render(GuiGraphics g, int mx, int my, float pt) {
         this.renderBackground(g);
@@ -339,7 +368,6 @@ public class MusicPlayerScreen extends Screen {
             super.render(g, mx, my, pt);
         }
     }
-
     private void renderQrLayer(GuiGraphics g, int mx, int my, float pt) {
         g.drawCenteredString(this.font, loginStatusText, leftPos + WINDOW_WIDTH / 2, topPos + 45, 0xFFE0E0E0);
         if (qrCodeCache != null) {
@@ -361,27 +389,23 @@ public class MusicPlayerScreen extends Screen {
             g.drawCenteredString(this.font, "Loading...", leftPos + WINDOW_WIDTH / 2, topPos + 100, 0xFFAAAAAA);
         }
     }
-
     private void renderPlayerLayer(GuiGraphics g, int mx, int my, float pt) {
         renderTab(g, "搜 索", Tab.SEARCH, leftPos + 100, topPos + 8, mx, my);
         renderTab(g, "我的喜欢", Tab.PLAYLIST, leftPos + 160, topPos + 8, mx, my);
         int activeX = (currentTab == Tab.SEARCH) ? leftPos + 100 : leftPos + 160;
         int activeW = (currentTab == Tab.SEARCH) ? 30 : 45;
         g.fill(activeX - 2, topPos + 28, activeX + activeW + 2, topPos + 30, COLOR_ACCENT);
-
         if (currentTab == Tab.SEARCH) {
             g.fill(searchBox.getX() - 2, searchBox.getY() - 2, searchBox.getX() + searchBox.getWidth() + 2, searchBox.getY() + searchBox.getHeight() + 2, 0xFF202020);
         }
-
         renderProgressBar(g);
         this.btnToggle.setMessage(Component.literal(ClientMusicManager.isPaused() ? "▶" : "||"));
         if (!statusText.getString().isEmpty()) {
-            g.drawString(this.font, statusText, leftPos + 10, topPos + WINDOW_HEIGHT - 12, 0xFF666666, false); // 稍微移上来一点
+            g.drawString(this.font, statusText, leftPos + 10, topPos + WINDOW_HEIGHT - 12, 0xFF666666, false);
         }
         this.songList.render(g, mx, my, pt);
         super.render(g, mx, my, pt);
     }
-
     private void renderProgressBar(GuiGraphics g) {
         if (!ClientMusicManager.isPlaying()) return;
         long current = ClientMusicManager.getProgress();
@@ -389,41 +413,27 @@ public class MusicPlayerScreen extends Screen {
         if (total <= 0) total = 1;
         float percent = (float) current / total;
         percent = Math.min(1.0f, Math.max(0.0f, percent));
-
-        // 布局重构：
-        // 底部按钮栏在 Y = topPos + WINDOW_HEIGHT - 30 (即 Y=210)
-        // 进度条放在按钮上方 Y = 195 (Height 4)
-        // 时间文字放在进度条上方 Y = 182
-
         int barX = leftPos + 10;
-        int barY = topPos + WINDOW_HEIGHT - 45; // Y = 195
+        int barY = topPos + WINDOW_HEIGHT - 45;
         int barW = WINDOW_WIDTH - 20;
-        int barH = 4;
-
-        // 1. 画进度条背景和填充
+        int barH = 3;
         g.fill(barX, barY, barX + barW, barY + barH, 0xFF303030);
         g.fill(barX, barY, barX + (int) (barW * percent), barY + barH, COLOR_ACCENT);
-
-        // 2. 画时间文字 (在进度条右上方)
         String timeStr = formatTime(current) + " / " + formatTime(total);
         g.pose().pushPose();
         float scale = 0.8f;
         g.pose().scale(scale, scale, scale);
-        // 文字 Y 坐标 = 进度条 Y - 13px (留空隙)
-        int textY = (int)((barY - 13) / scale);
-        // 文字靠右对齐
         int textX = (int)((barX + barW) / scale) - this.font.width(timeStr);
+        int textY = (int)((barY - 10) / scale);
         g.drawString(this.font, timeStr, textX, textY, 0xFFAAAAAA, false);
         g.pose().popPose();
     }
-
     private void renderTab(GuiGraphics g, String text, Tab tab, int x, int y, int mx, int my) {
         boolean isActive = (currentTab == tab);
         boolean isHover = mx >= x && mx <= x + font.width(text) && my >= topPos && my <= topPos + 30;
         int color = isActive ? COLOR_TEXT_ACTIVE : (isHover ? 0xFFE0E0E0 : COLOR_TEXT_IDLE);
         g.drawString(this.font, text, x, y, color, false);
     }
-
     private String formatTime(long ms) {
         long sec = ms / 1000;
         return String.format("%02d:%02d", sec / 60, sec % 60);
@@ -440,7 +450,7 @@ public class MusicPlayerScreen extends Screen {
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
-    // FlatButton
+    // FlatButton (保持不变)
     private class FlatButton extends Button {
         public FlatButton(int x, int y, int w, int h, String label, OnPress onPress) {
             super(x, y, w, h, Component.literal(label), onPress, DEFAULT_NARRATION);
@@ -506,17 +516,9 @@ public class MusicPlayerScreen extends Screen {
                 return false;
             }
 
-            private void playLogic(SongInfo song) {
-                String modeText = isBroadcastMode ? "§c[全服广播]" : "§a[私享模式]";
-                new Thread(() -> {
-                    String url = NeteaseApi.getSongUrl(song.id);
-                    if (url == null) {
-                        Minecraft.getInstance().execute(() -> Minecraft.getInstance().player.sendSystemMessage(Component.literal("§c播放失败")));
-                        return;
-                    }
-                    if (isBroadcastMode) PacketHandler.sendToServer(new C2SReportMusicPacket(url, song.name + " - " + song.artist, song.duration));
-                    else Minecraft.getInstance().execute(() -> ClientMusicManager.play(url, song.name + " - " + song.artist, song.duration));
-                }).start();
+            // 公开这个方法，供随机播放调用
+            public void playLogic(SongInfo song) {
+                playSong(song); // 委托给外部类的方法
             }
             @Override public Component getNarration() { return Component.literal(song.name); }
         }
