@@ -32,6 +32,9 @@ public class ClientPacketHandler {
         if (action == S2CMusicCommandPacket.Action.PLAY_Direct) {
             String url = data;
             // extra 此时作为 duration
+            if (!url.equals(MusicPlayerScreen.EXPECTED_URL)) {
+                ClientMusicManager.onTrackFinishedCallback = null;
+            }
             ClientMusicManager.play(url, "正在播放...", extra);
             return;
         }

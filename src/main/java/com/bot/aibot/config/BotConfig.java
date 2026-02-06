@@ -1,6 +1,7 @@
 package com.bot.aibot.config;
 
 import com.electronwill.nightconfig.core.file.CommentedFileConfig;
+import com.electronwill.nightconfig.core.io.WritingMode; // 【新增】引入写入模式
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.loading.FMLPaths;
 import org.apache.commons.lang3.tuple.Pair;
@@ -15,7 +16,7 @@ public class BotConfig {
     public static final ServerConfig SERVER;
     public static final ForgeConfigSpec SERVER_SPEC;
 
-    // --- 【新增】客户端配置 (aibot-client.toml) ---
+    // --- 客户端配置 (aibot-client.toml) ---
     public static final ClientConfig CLIENT;
     public static final ForgeConfigSpec CLIENT_SPEC;
 
@@ -25,7 +26,7 @@ public class BotConfig {
         SERVER_SPEC = serverPair.getRight();
         SERVER = serverPair.getLeft();
 
-        // 【新增】初始化客户端配置
+        // 初始化客户端配置
         final Pair<ClientConfig, ForgeConfigSpec> clientPair = new ForgeConfigSpec.Builder().configure(ClientConfig::new);
         CLIENT_SPEC = clientPair.getRight();
         CLIENT = clientPair.getLeft();
@@ -78,7 +79,7 @@ public class BotConfig {
             mcPrefix = builder.comment("服务器前缀").define("mc_prefix", "Server");
             broadcastCooldown = builder
                     .comment("全服广播功能的冷却时间 (秒)，防止刷屏")
-                    .defineInRange("broadcast_cooldown", 600, 0, 3600); // 默认600秒
+                    .defineInRange("broadcast_cooldown", 600, 0, 3600);
             builder.pop();
 
             builder.comment("AI 配置").push("ai_features");
@@ -105,7 +106,7 @@ public class BotConfig {
     }
 
     /**
-     * 【新增】客户端配置类 (存个人隐私数据)
+     * 客户端配置类 (存个人隐私数据)
      */
     public static class ClientConfig {
         public final ForgeConfigSpec.ConfigValue<String> neteaseCookie;
@@ -121,17 +122,43 @@ public class BotConfig {
     }
 
     /**
-     * 重载配置 (主要用于服务端热重载)
+     * 重载配置 (修复版)
      */
     public static void refresh() {
         try {
-            Path path = FMLPaths.CONFIGDIR.get().resolve("aibot-common.toml");
-            CommentedFileConfig configData = CommentedFileConfig.builder(path).sync().build();
-            configData.load();
-            SERVER_SPEC.setConfig(configData);
-            System.out.println(">>> [Bot] 配置文件已刷新");
+            // 1. 重载服务端配置 (aibot-common.toml)
+            Path serverPath = FMLPaths.CONFIGDIR.get().resolve("aibot-common.toml");
+            System.out.println(">>> [Bot] Reloading Server Config: " + serverPath);
+
+            // 使用更稳健的构建参数
+            CommentedFileConfig serverConfig = CommentedFileConfig.builder(serverPath)
+                    .sync() // 开启同步
+                    .autosave() // 开启自动保存
+                    .writingMode(WritingMode.REPLACE) // 【关键】使用替换模式写入，防止文件错乱
+                    .build();
+
+            serverConfig.load(); // 读取文件
+            SERVER_SPEC.setConfig(serverConfig); // 应用配置
+
+            // 2. 【新增】顺便重载客户端配置 (aibot-client.toml)
+            // 防止你改了 Cookie 想重载却发现没生效
+            Path clientPath = FMLPaths.CONFIGDIR.get().resolve("aibot-client.toml");
+            if (clientPath.toFile().exists()) {
+                System.out.println(">>> [Bot] Reloading Client Config: " + clientPath);
+                CommentedFileConfig clientConfig = CommentedFileConfig.builder(clientPath)
+                        .sync()
+                        .autosave()
+                        .writingMode(WritingMode.REPLACE)
+                        .build();
+                clientConfig.load();
+                CLIENT_SPEC.setConfig(clientConfig);
+            }
+
+            System.out.println(">>> [Bot] 配置文件重载成功！");
         } catch (Exception e) {
+            System.err.println(">>> [Bot] 配置文件重载失败！请检查 .toml 文件是否存在语法错误！");
             e.printStackTrace();
+            // 这里捕获异常后，不会继续执行 setConfig，从而避免了“因读取失败导致默认值覆盖文件”的悲剧
         }
     }
 }

@@ -54,6 +54,8 @@ public class MusicPlayerScreen extends Screen {
     private boolean isBroadcastMode = false;
     private PlaybackMode currentPlaybackMode = PlaybackMode.LIST_LOOP;
 
+    public static volatile String EXPECTED_URL = "";
+
     // 控件
     private EditBox searchBox;
     private SongListWidget songList;
@@ -300,6 +302,8 @@ public class MusicPlayerScreen extends Screen {
                 Minecraft.getInstance().execute(() -> Minecraft.getInstance().player.sendSystemMessage(Component.literal("§c播放失败: VIP/无版权")));
                 return;
             }
+            EXPECTED_URL = url;
+            ClientMusicManager.onTrackFinishedCallback = () -> trySwitchSong(true, true);
             if (performBroadcast) {
                 // 【修正】这里填 true，明确告诉服务端：“这是一次广播请求！”
                 PacketHandler.sendToServer(new C2SReportMusicPacket(url, song.name + " - " + song.artist, song.duration, true));
