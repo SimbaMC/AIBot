@@ -3,11 +3,14 @@ package com.bot.aibot.network.packet;
 import com.bot.aibot.client.ClientMusicManager;
 import com.bot.aibot.network.PacketHandler;
 import com.bot.aibot.utils.NeteaseApi;
+import com.bot.aibot.utils.SongInfo;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraftforge.network.NetworkEvent;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.function.Supplier;
 
 public class S2CRequestSearchPacket {
@@ -17,6 +20,7 @@ public class S2CRequestSearchPacket {
     public S2CRequestSearchPacket(String keyword, boolean isGlobal) {
         this.keyword = keyword;
         this.isGlobal = isGlobal;
+
     }
 
     public S2CRequestSearchPacket(FriendlyByteBuf buf) {
@@ -39,13 +43,26 @@ public class S2CRequestSearchPacket {
                 try {
                     // 1. 客户端本地调用 API (走玩家自己的梯子/网络)
                     // 确保 NeteaseApi 已在客户端初始化 (客户端启动时会自动读取 Config)
-                    String songId = NeteaseApi.search(keyword);
-                    if (songId == null) {
+                    String songIdStr = NeteaseApi.search(keyword);
+                    if (songIdStr == null) {
                         printError("未找到歌曲");
                         return;
                     }
+                    long duration = 0;
+                    String finalName = keyword;
+                    try {
+                        long songIdLong = Long.parseLong(songIdStr);
+                        List<SongInfo> details = NeteaseApi.getSongsDetail(Collections.singletonList(songIdLong));
+                        if (!details.isEmpty()) {
+                            SongInfo info = details.get(0);
+                            duration = info.duration;
+                            finalName = info.name + " - " + info.artist;
+                        }
+                    } catch (Exception ignored) {
+                        System.out.println(">>> [Client] 获取歌曲详情失败，将使用默认信息");
+                    }
 
-                    String url = NeteaseApi.getSongUrl(songId);
+                    String url = NeteaseApi.getSongUrl(songIdStr);
                     if (url == null) {
                         printError("无法获取播放链接");
                         return;
@@ -56,13 +73,15 @@ public class S2CRequestSearchPacket {
 
                     // 2. 拿到链接后的分支判断
                     if (isGlobal) {
-                        // 模式 A: 全服广播 -> 把结果发回给服务端
-                        PacketHandler.INSTANCE.sendToServer(new C2SReportMusicPacket(url, keyword));
+                        // 全服广播：发包给服务端 (带时长)
+                        // 修复：补齐了第三个参数 duration
+                        PacketHandler.INSTANCE.sendToServer(new C2SReportMusicPacket(url, finalName, duration));
                         Minecraft.getInstance().player.sendSystemMessage(Component.literal("§a[Bot] 解析成功，正在上传服务器广播..."));
                     } else {
-                        // 模式 B: 私享 -> 直接本地播放
-                        ClientMusicManager.play(url, keyword);
-                        Minecraft.getInstance().player.sendSystemMessage(Component.literal("§b[私享] 正在播放: " + keyword));
+                        // 私享播放：本地播放 (带时长)
+                        // 修复：补齐了第三个参数 duration
+                        ClientMusicManager.play(url, finalName, duration);
+                        Minecraft.getInstance().player.sendSystemMessage(Component.literal("§b[私享] 正在播放: " + finalName));
                     }
 
                 } catch (Exception e) {

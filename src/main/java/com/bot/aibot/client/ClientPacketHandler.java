@@ -3,11 +3,13 @@ package com.bot.aibot.client;
 import com.bot.aibot.network.PacketHandler;
 import com.bot.aibot.network.packet.C2SReportMusicPacket;
 import com.bot.aibot.utils.NeteaseApi;
+import com.bot.aibot.utils.SongInfo;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
@@ -68,10 +70,20 @@ public class ClientPacketHandler {
                 }
 
                 long randomSongId = songIds.get(new Random().nextInt(songIds.size()));
+
+                // 【核心修复】先获取详情，拿到时长和歌名
+                String songName = "随机歌曲: " + randomSongId;
+                long duration = 0;
+                List<SongInfo> details = NeteaseApi.getSongsDetail(Collections.singletonList(randomSongId));
+                if (!details.isEmpty()) {
+                    SongInfo info = details.get(0);
+                    songName = info.name + " - " + info.artist;
+                    duration = info.duration;
+                }
                 String url = NeteaseApi.getSongUrl(String.valueOf(randomSongId));
 
                 if (url != null) {
-                    PacketHandler.sendToServer(new C2SReportMusicPacket(url, "§d随机收藏: " + randomSongId));
+                    PacketHandler.sendToServer(new C2SReportMusicPacket(url, songName, duration));
                     mc.execute(() -> mc.player.sendSystemMessage(Component.literal("§a[Bot] 命中幸运歌曲 ID: " + randomSongId)));
                 } else {
                     mc.execute(() -> mc.player.sendSystemMessage(Component.literal("§c[Bot] 随机到的歌曲无法播放 (无版权)。")));

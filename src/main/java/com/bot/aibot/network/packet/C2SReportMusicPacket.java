@@ -17,6 +17,7 @@ public class C2SReportMusicPacket {
     public C2SReportMusicPacket(String url, String songName,long duration) {
         this.url = url;
         this.songName = songName;
+        this.duration = duration;
     }
 
     public C2SReportMusicPacket(FriendlyByteBuf buf) {
