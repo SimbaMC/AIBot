@@ -1,7 +1,6 @@
 package com.bot.aibot.config;
 
 import com.electronwill.nightconfig.core.file.CommentedFileConfig;
-import com.electronwill.nightconfig.core.io.WritingMode;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.loading.FMLPaths;
 import org.apache.commons.lang3.tuple.Pair;
@@ -12,18 +11,19 @@ import java.util.List;
 
 public class BotConfig {
 
-    // Forge 配置的标准样板代码
+    // --- 服务端/通用配置 (aibot-common.toml) ---
     public static final ServerConfig SERVER;
     public static final ForgeConfigSpec SERVER_SPEC;
 
-    // 【新增】客户端配置
+    // --- 【新增】客户端配置 (aibot-client.toml) ---
     public static final ClientConfig CLIENT;
     public static final ForgeConfigSpec CLIENT_SPEC;
 
     static {
-        final Pair<ServerConfig, ForgeConfigSpec> specPair = new ForgeConfigSpec.Builder().configure(ServerConfig::new);
-        SERVER_SPEC = specPair.getRight();
-        SERVER = specPair.getLeft();
+        // 初始化服务端配置
+        final Pair<ServerConfig, ForgeConfigSpec> serverPair = new ForgeConfigSpec.Builder().configure(ServerConfig::new);
+        SERVER_SPEC = serverPair.getRight();
+        SERVER = serverPair.getLeft();
 
         // 【新增】初始化客户端配置
         final Pair<ClientConfig, ForgeConfigSpec> clientPair = new ForgeConfigSpec.Builder().configure(ClientConfig::new);
@@ -31,159 +31,103 @@ public class BotConfig {
         CLIENT = clientPair.getLeft();
     }
 
+    /**
+     * 服务端配置类 (存全局设置)
+     */
     public static class ServerConfig {
-        // --- 基础连接设置 ---
         public final ForgeConfigSpec.ConfigValue<String> wsUrl;
         public final ForgeConfigSpec.ConfigValue<List<? extends Number>> groupIds;
         public final ForgeConfigSpec.ConfigValue<Long> targetBotId;
 
-        // --- 功能开关 ---
         public final ForgeConfigSpec.BooleanValue enableChatSync;
         public final ForgeConfigSpec.BooleanValue enableJoinLeave;
         public final ForgeConfigSpec.BooleanValue enableDeath;
         public final ForgeConfigSpec.ConfigValue<String> mcPrefix;
-
-        // 【新增】成就开关
         public final ForgeConfigSpec.BooleanValue enableAdvancement;
 
-        // --- AI 功能设置 ---
         public final ForgeConfigSpec.BooleanValue enableAI;
         public final ForgeConfigSpec.ConfigValue<String> aiApiUrl;
         public final ForgeConfigSpec.ConfigValue<String> aiApiKey;
         public final ForgeConfigSpec.ConfigValue<String> aiModelName;
         public final ForgeConfigSpec.ConfigValue<String> aiPrompt;
         public final ForgeConfigSpec.ConfigValue<String> aiTriggerPrefix;
+        public final ForgeConfigSpec.ConfigValue<String> aiDeathMode;
+        public final ForgeConfigSpec.ConfigValue<String> aiDeathPrompt;
 
-        // 【新增】网易云 Cookie
-        public final ForgeConfigSpec.ConfigValue<String> neteaseCookie;
+        // 移除了 neteaseCookie！因为它不应该在服务端！
 
-        // --- 自定义消息模板 ---
         public final ForgeConfigSpec.ConfigValue<String> joinMsgFormat;
         public final ForgeConfigSpec.ConfigValue<String> leaveMsgFormat;
         public final ForgeConfigSpec.ConfigValue<String> deathMsgFormat;
         public final ForgeConfigSpec.ConfigValue<String> chatMsgFormat;
-        // 【新增】成就消息模板
         public final ForgeConfigSpec.ConfigValue<String> advancementMsgFormat;
-
-        // 【新增】启动消息格式
         public final ForgeConfigSpec.ConfigValue<String> startMsgFormat;
 
-        // 【新增】AI 死亡播报配置
-        // 【修改】从 Boolean 改为 String 配置，提供三个选项
-        public final ForgeConfigSpec.ConfigValue<String> aiDeathMode;
-        public final ForgeConfigSpec.ConfigValue<String> aiDeathPrompt;
-
-
         public ServerConfig(ForgeConfigSpec.Builder builder) {
-            // 1. General (基础设置)
             builder.comment("Bot 基础连接配置").push("general");
             wsUrl = builder.define("ws_url", "ws://127.0.0.1:3001");
             groupIds = builder.defineList("group_ids", Arrays.asList(0L), o -> o instanceof Number);
             targetBotId = builder.define("target_bot_id", 0L);
             builder.pop();
 
-            // 2. Features (功能开关)
             builder.comment("功能开关").push("features");
             enableChatSync = builder.define("enable_chat_sync", true);
             enableJoinLeave = builder.define("enable_join_leave", true);
             enableDeath = builder.define("enable_death", true);
-            // 成就开关在这里
             enableAdvancement = builder.define("enable_advancement", true);
-            mcPrefix = builder.comment("服务器前缀 (对应变量 %prefix%)").define("mc_prefix", "Server");
+            mcPrefix = builder.comment("服务器前缀").define("mc_prefix", "Server");
             builder.pop();
 
-            // 3. AI (AI 设置)
-            builder.comment("AI 智能对话配置").push("ai_features");
+            builder.comment("AI 配置").push("ai_features");
             enableAI = builder.define("enable_ai", false);
             aiApiUrl = builder.define("api_url", "https://api.deepseek.com/chat/completions");
-            aiApiKey = builder.define("api_key", "sk-xxxxxxxxxxxxxxxxxxxx");
+            aiApiKey = builder.define("api_key", "sk-xxxxxxxx");
             aiModelName = builder.define("model_name", "deepseek-chat");
-            aiPrompt = builder.define("system_prompt", "你是一个 Minecraft 服务器的助手...");
+            aiPrompt = builder.define("system_prompt", "你是一个 Minecraft 助手...");
             aiTriggerPrefix = builder.define("trigger_prefix", "bot ");
-            // 【修改】AI 死亡播报模式
-            // OFF: 关闭 (仅使用本地)
-            // HYBRID: 混合 (优先本地，未翻译的才用 AI)
-            // AI_ONLY: AI 独占 (完全接管，忽略本地)
-            aiDeathMode = builder.comment("AI 死亡翻译模式 [OFF, HYBRID, AI_ONLY]")
-                    .defineInList("ai_death_mode", "HYBRID", Arrays.asList("OFF", "HYBRID", "AI_ONLY"));
-            aiDeathPrompt = builder.comment("AI 翻译死亡消息的提示词 (System Prompt)")
-                    .define("ai_death_prompt", "你是一个Minecraft死亡播报员。请把用户的死亡消息翻译成幽默风趣的中文，并且无情的嘲讽玩家，不要解释，直接输出翻译结果。");
+            aiDeathMode = builder.defineInList("ai_death_mode", "HYBRID", Arrays.asList("OFF", "HYBRID", "AI_ONLY"));
+            aiDeathPrompt = builder.define("ai_death_prompt", "无情嘲讽玩家...");
             builder.pop();
 
-            // 【新增】第三方服务配置
-            builder.comment("第三方服务配置").push("services");
-            neteaseCookie = builder.comment("网易云音乐 Cookie (用于绕过风控/播放VIP歌曲)")
-                    .define("netease_cookie", ""); // 默认为空，等待扫码填入
+            builder.comment("消息格式").push("messages");
+            advancementMsgFormat = builder.define("advancement_msg", "%player% 取得了进度 [%advancement%]");
+            joinMsgFormat = builder.define("join_msg", "%player% 加入了服务器！");
+            leaveMsgFormat = builder.define("leave_msg", "%player% 离开了服务器。");
+            deathMsgFormat = builder.define("death_msg", "%msg%");
+            chatMsgFormat = builder.define("chat_format", "[%prefix%] %player%: %msg%");
+            startMsgFormat = builder.define("start_msg", "[%prefix%] Bot 已连接！");
             builder.pop();
-
-            // 4. Messages (消息文案 - 已合并)
-            builder.comment("自定义消息格式",
-                            "可用变量:",
-                            "%player% - 玩家名",
-                            "%msg% - 聊天内容/死亡信息",
-                            "%prefix% - 服务器前缀",
-                            "%advancement% - 成就标题",
-                            "%desc% - 成就描述")
-                    .push("messages");
-
-            // --- 在这里统一初始化所有消息模板 ---
-
-            advancementMsgFormat = builder.comment("玩家达成成就提示")
-                    .define("advancement_msg", "%player% 取得了进度 [%advancement%]");
-
-            joinMsgFormat = builder.comment("玩家加入提示")
-                    .define("join_msg", "%player% 加入了服务器！");
-
-            leaveMsgFormat = builder.comment("玩家离开提示")
-                    .define("leave_msg", "%player% 离开了服务器。");
-
-            deathMsgFormat = builder.comment("玩家死亡提示 (%msg% 是具体的死法，如'Dev被僵尸杀死了')")
-                    .define("death_msg", "%msg%");
-
-            chatMsgFormat = builder.comment("聊天转发格式")
-                    .define("chat_format", "[%prefix%] %player%: %msg%");
-
-            startMsgFormat = builder.comment("Bot 连接成功/服务器启动提示")
-                    .define("start_msg", "[%prefix%] 服务器已连接，Bot 正在运行！");
-
-            builder.pop(); // 只需要这一个 pop
         }
     }
 
-    // 【新增】客户端配置类
+    /**
+     * 【新增】客户端配置类 (存个人隐私数据)
+     */
     public static class ClientConfig {
         public final ForgeConfigSpec.ConfigValue<String> neteaseCookie;
 
         public ClientConfig(ForgeConfigSpec.Builder builder) {
-            builder.comment("客户端设置").push("client");
+            builder.comment("客户端设置 (个人数据)").push("client");
 
-            neteaseCookie = builder.comment("本地网易云 Cookie (自动保存)")
+            neteaseCookie = builder.comment("网易云音乐 Cookie (自动保存，请勿泄露)")
                     .define("netease_cookie", "");
 
             builder.pop();
         }
     }
 
-    // 强制重载配置文件的逻辑
+    /**
+     * 重载配置 (主要用于服务端热重载)
+     */
     public static void refresh() {
         try {
-            // 1. 获取配置文件路径 (run/config/bottymod-common.toml)
+            // 只重载服务端配置，客户端配置通常不需要热重载
             Path path = FMLPaths.CONFIGDIR.get().resolve("aibot-common.toml");
-            System.out.println(">>> [Bot] 正在重载配置文件: " + path.toString());
-
-            // 2. 使用 NightConfig 强制读取硬盘文件
-            CommentedFileConfig configData = CommentedFileConfig.builder(path)
-                    .sync() // 同步
-                    .build();
-
-            // 3. 加载并设置给 Spec (这就把硬盘的值刷进内存了)
+            CommentedFileConfig configData = CommentedFileConfig.builder(path).sync().build();
             configData.load();
             SERVER_SPEC.setConfig(configData);
-
-            System.out.println(">>> [Bot] 配置文件重载成功！");
-
+            System.out.println(">>> [Bot] 配置文件已刷新");
         } catch (Exception e) {
-            System.out.println(">>> [Bot] 配置文件重载失败: " + e.getMessage());
             e.printStackTrace();
         }
     }

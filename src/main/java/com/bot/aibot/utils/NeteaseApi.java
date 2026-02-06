@@ -35,7 +35,7 @@ public class NeteaseApi {
             .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(Duration.ofSeconds(10))
             .cookieHandler(cookieManager)
-            .proxy(ProxySelector.of(null))
+            .proxy(ProxySelector.getDefault()) // 建议改为 getDefault 以兼容系统代理，或者 keep null
             .build();
 
     // 3. User-Agent
@@ -65,11 +65,17 @@ public class NeteaseApi {
             initBaseCookie();
 
             // 2. 检查 Config 里有没有存货
-            if (BotConfig.SERVER == null) return;
-            String savedCookie = BotConfig.SERVER.neteaseCookie.get();
+            // 【核心修正】这里必须用 BotConfig.CLIENT，因为 Cookie 移到了客户端配置
+            if (BotConfig.CLIENT == null) {
+                // 如果是服务端环境，CLIENT 可能为 null，直接返回防止崩溃
+                return;
+            }
+
+            // 获取 Cookie
+            String savedCookie = BotConfig.CLIENT.neteaseCookie.get();
 
             if (savedCookie == null || savedCookie.isEmpty()) {
-                System.out.println(">>> [API] 未检测到历史 Cookie，请使用 /bot login 扫码登录。");
+                // System.out.println(">>> [API] 未检测到历史 Cookie，请使用 /bot login 扫码登录。");
                 return;
             }
 
@@ -99,6 +105,7 @@ public class NeteaseApi {
         }
 
     }
+
     public static void setCookie(String cookieStr) {
         if (cookieStr == null || cookieStr.isEmpty()) return;
         try {
@@ -125,7 +132,7 @@ public class NeteaseApi {
     // ================= 4. 登录流程 (Mod Copy Mode) =================
 
     public static String getLoginKey() {
-        System.out.println(">>> [Debug] 1. 获取 Key (Mod Copy Mode - No Host Header)");
+        System.out.println(">>> [Debug] 1. 获取 Key");
         try {
             initBaseCookie();
             String url = "https://music.163.com/api/login/qrcode/unikey";
@@ -207,7 +214,7 @@ public class NeteaseApi {
 
         HttpResponse<String> resp = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
         String body = resp.body();
-        System.out.println(">>> [Debug-Check] " + body);
+        // System.out.println(">>> [Debug-Check] " + body);
 
         JsonObject root = JsonParser.parseString(body).getAsJsonObject();
         int code = root.has("code") ? root.get("code").getAsInt() : 500;

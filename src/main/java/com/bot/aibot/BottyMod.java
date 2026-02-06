@@ -17,6 +17,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
 @Mod("aibot")
 public class BottyMod {
@@ -40,15 +41,23 @@ public class BottyMod {
         MinecraftForge.EVENT_BUS.register(new AdvancementEvents());
         // 注册网络包
         PacketHandler.register();
+        // 【新增】注册客户端初始化事件
+        // 这一行告诉 Forge：如果是客户端启动，请通知我
+        net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext.get().getModEventBus().addListener(this::doClientStuff);
+    }
+    // 【新增】客户端专用初始化方法
+    private void doClientStuff(final FMLClientSetupEvent event) {
+        event.enqueueWork(() -> {
+            System.out.println(">>> [Bot] 正在初始化客户端环境...");
+            // 只有在这里（客户端）加载 Cookie 才是安全的
+            NeteaseApi.loadCookies();
+        });
     }
 
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
         serverInstance = event.getServer();
         ChineseUtils.load(); // 加载汉化
-
-        // 【新增】服务器启动时，尝试恢复登录状态
-        NeteaseApi.loadCookies();
 
         System.out.println(">>> [Bot] 正在启动网络模块...");
         BotClient.getInstance().connect(); // 启动连接
