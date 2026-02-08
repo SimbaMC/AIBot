@@ -1,7 +1,7 @@
 package com.bot.aibot.config;
 
 import com.electronwill.nightconfig.core.file.CommentedFileConfig;
-import com.electronwill.nightconfig.core.io.WritingMode; // 【新增】引入写入模式
+import com.electronwill.nightconfig.core.io.WritingMode;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.loading.FMLPaths;
 import org.apache.commons.lang3.tuple.Pair;
@@ -73,7 +73,7 @@ public class BotConfig {
             groupIds = builder.defineList("group_ids", Arrays.asList(0L), o -> o instanceof Number);
             targetBotId = builder.define("target_bot_id", 0L);
             qqFaceApi = builder.comment("QQ表情包 GIF 下载源 (必须包含 %s 用于替换 ID)")
-                    .define("qq_face_api", "https://github.com/koishijs/QFace/blob/master/public/gif/%s.gif");
+                    .define("qq_face_api", "https://koishi.js.org/QFace/assets/qq_emoji/%s/apng/%s.png");
             builder.pop();
 
             builder.comment("功能开关").push("features");
@@ -138,21 +138,20 @@ public class BotConfig {
             // 使用更稳健的构建参数
             CommentedFileConfig serverConfig = CommentedFileConfig.builder(serverPath)
                     .sync() // 开启同步
-                    .autosave() // 开启自动保存
-                    .writingMode(WritingMode.REPLACE) // 【关键】使用替换模式写入，防止文件错乱
+                    // .autosave() // 【修复】移除自动保存，防止重载时旧内存值覆盖文件
+                    .writingMode(WritingMode.REPLACE)
                     .build();
 
             serverConfig.load(); // 读取文件
             SERVER_SPEC.setConfig(serverConfig); // 应用配置
 
             // 2. 【新增】顺便重载客户端配置 (aibot-client.toml)
-            // 防止你改了 Cookie 想重载却发现没生效
             Path clientPath = FMLPaths.CONFIGDIR.get().resolve("aibot-client.toml");
             if (clientPath.toFile().exists()) {
                 System.out.println(">>> [Bot] Reloading Client Config: " + clientPath);
                 CommentedFileConfig clientConfig = CommentedFileConfig.builder(clientPath)
                         .sync()
-                        .autosave()
+                        // .autosave() // 【修复】移除自动保存
                         .writingMode(WritingMode.REPLACE)
                         .build();
                 clientConfig.load();
@@ -163,7 +162,6 @@ public class BotConfig {
         } catch (Exception e) {
             System.err.println(">>> [Bot] 配置文件重载失败！请检查 .toml 文件是否存在语法错误！");
             e.printStackTrace();
-            // 这里捕获异常后，不会继续执行 setConfig，从而避免了“因读取失败导致默认值覆盖文件”的悲剧
         }
     }
 }
