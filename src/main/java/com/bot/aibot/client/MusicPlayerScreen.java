@@ -51,12 +51,18 @@ public class MusicPlayerScreen extends Screen {
     private static SongInfo CACHED_PLAYING_SONG = null;
     private static long lastBroadcastTime = 0;
 
+    // 文件夹状态缓存
+    private static boolean CACHED_IN_PLAYLIST_FOLDER = false;
+    private static String CACHED_FOLDER_NAME = "";
+    private static long CACHED_PLAYLIST_ID = -1; // 【新增】缓存当前歌单ID
+
     private enum Tab { SEARCH, MY_LIKE, PLAYLISTS }
     private Tab currentTab = Tab.SEARCH;
 
     // 歌单浏览状态
     private boolean inPlaylistFolder = false;
     private String currentFolderName = "";
+    private long currentPlaylistId = -1; // 【新增】当前所在歌单ID
 
     private boolean isBroadcastMode = false;
     private PlaybackMode currentPlaybackMode = PlaybackMode.LIST_LOOP;
@@ -67,7 +73,7 @@ public class MusicPlayerScreen extends Screen {
     private EditBox searchBox;
     private SongListWidget songList;
     private PlaylistListWidget playlistList;
-    private FlatButton btnSearch;
+    private FlatButton btnSearch, btnBack;
     private FlatButton btnPlayPrev, btnToggle, btnPlayNext, btnStop;
     private FlatButton btnLoopMode, btnMode;
     private FlatButton btnPagePrev, btnPageNext;
@@ -123,6 +129,18 @@ public class MusicPlayerScreen extends Screen {
         else if (currentState == ScreenState.LOGIN_QR) initLoginQrInterface();
     }
 
+    // 强制手动分发滚轮事件 (解决歌单列表滚动问题)
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (this.playlistList != null && this.playlistList.visible) {
+            if (this.playlistList.mouseScrolled(mouseX, mouseY, delta)) return true;
+        }
+        if (this.songList != null && this.songList.visible) {
+            if (this.songList.mouseScrolled(mouseX, mouseY, delta)) return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, delta);
+    }
+
     private void trySwitchSong(boolean isNext, boolean isAuto) {
         if (isBroadcastMode && isAuto) return;
         if (CACHED_CURRENT_LIST == null || CACHED_CURRENT_LIST.isEmpty()) return;
@@ -162,12 +180,17 @@ public class MusicPlayerScreen extends Screen {
     private void initPlayerInterface() {
         int contentTop = topPos + 35;
 
-        // 恢复缓存状态
+        // 恢复缓存
         if (CACHED_TAB != null) this.currentTab = CACHED_TAB;
         if (CACHED_ALL_IDS != null) this.allSongIdsCache = CACHED_ALL_IDS;
         this.currentPage = CACHED_PAGE;
         this.isBroadcastMode = CACHED_BROADCAST_MODE;
         this.currentPlaybackMode = CACHED_PLAYBACK_MODE;
+
+        // 恢复文件夹状态
+        this.inPlaylistFolder = CACHED_IN_PLAYLIST_FOLDER;
+        this.currentFolderName = CACHED_FOLDER_NAME;
+        this.currentPlaylistId = CACHED_PLAYLIST_ID;
 
         // 搜索框
         this.searchBox = new EditBox(this.font, leftPos + 10, contentTop + 10, 200, 18, Component.literal("搜索"));
@@ -177,6 +200,17 @@ public class MusicPlayerScreen extends Screen {
 
         this.btnSearch = new FlatButton(leftPos + 220, contentTop + 9, 50, 20, "GO", b -> doSearch());
         this.addRenderableWidget(this.btnSearch);
+
+        // 返回按钮
+        this.btnBack = new FlatButton(leftPos + 10, contentTop + 9, 80, 20, "<- 返回列表", b -> {
+            if (currentTab == Tab.PLAYLISTS && inPlaylistFolder) {
+                inPlaylistFolder = false;
+                CACHED_IN_PLAYLIST_FOLDER = false;
+                updateTabVisibility();
+            }
+        });
+        this.btnBack.visible = false;
+        this.addRenderableWidget(this.btnBack);
 
         // 底部控制栏
         int bY = topPos + WINDOW_HEIGHT - 30;
@@ -223,11 +257,10 @@ public class MusicPlayerScreen extends Screen {
         this.addRenderableWidget(this.btnPagePrev);
         this.addRenderableWidget(this.btnPageNext);
 
-        // 列表区域
+        // 列表
         int listY = contentTop + 40;
         int listH = WINDOW_HEIGHT - 35 - 40 - 65;
 
-        // 初始化列表控件
         this.songList = new SongListWidget(this.minecraft, WINDOW_WIDTH - 20, listH, listY);
         this.songList.setLeftPos(leftPos + 10);
         this.addWidget(this.songList);
@@ -236,7 +269,6 @@ public class MusicPlayerScreen extends Screen {
         this.playlistList.setLeftPos(leftPos + 10);
         this.addWidget(this.playlistList);
 
-        // 恢复 UI 状态
         if (CACHED_CURRENT_LIST != null) this.songList.refreshList(CACHED_CURRENT_LIST);
         if (CACHED_USER_PLAYLISTS != null) this.playlistList.refreshList(CACHED_USER_PLAYLISTS);
 
@@ -284,11 +316,12 @@ public class MusicPlayerScreen extends Screen {
 
     public static void resetCooldown() { lastBroadcastTime = 0; }
 
-    // --- Tab 切换逻辑 (修复了缓存污染问题) ---
+    // --- Tab 切换逻辑 (修复版) ---
     private void switchTab(Tab tab) {
+        // 1. 如果在歌单文件夹内再次点击“我的歌单”Tab，则返回上一级
         if (this.currentTab == Tab.PLAYLISTS && tab == Tab.PLAYLISTS && inPlaylistFolder) {
-            // 从文件夹返回歌单列表
             inPlaylistFolder = false;
+            CACHED_IN_PLAYLIST_FOLDER = false;
             updateTabVisibility();
             return;
         }
@@ -296,16 +329,39 @@ public class MusicPlayerScreen extends Screen {
         this.currentTab = tab;
         CACHED_TAB = tab;
 
-        if (tab != Tab.PLAYLISTS) inPlaylistFolder = false;
+        // 【关键】这里不再强制重置 inPlaylistFolder = false
+        // 从而保留了“切出去再切回来”的状态
 
         updateTabVisibility();
 
-        // 【核心修复】强制重新加载，避免数据串台
+        // 更新缓存
+        CACHED_IN_PLAYLIST_FOLDER = inPlaylistFolder;
+        CACHED_FOLDER_NAME = currentFolderName;
+        CACHED_PLAYLIST_ID = currentPlaylistId;
+
+        // 数据加载/恢复逻辑
         if (tab == Tab.MY_LIKE) {
+            // 切到“我的喜欢”，必须重新加载，否则显示的是上次歌单的内容
             loadMyLikes();
         } else if (tab == Tab.PLAYLISTS) {
-            if (CACHED_USER_PLAYLISTS == null || CACHED_USER_PLAYLISTS.isEmpty()) {
-                loadAllUserPlaylists();
+            if (inPlaylistFolder) {
+                // 【核心修复】如果切回来时处于文件夹模式，必须重新加载该文件夹的歌曲
+                // 因为刚才可能去“我的喜欢”或者“搜索”转了一圈，把 list 覆盖了
+                if (currentPlaylistId != -1) {
+                    // 避免不必要的加载：如果当前显示的已经是对的就不加载？
+                    // 鉴于逻辑复杂，直接重载最稳妥
+                    statusText = Component.literal("正在恢复: " + currentFolderName);
+                    loadSongsByPlaylistId(currentPlaylistId);
+                } else {
+                    // 异常情况，回退到第一层
+                    inPlaylistFolder = false;
+                    loadAllUserPlaylists();
+                }
+            } else {
+                // 处于第一层（歌单列表）
+                if (CACHED_USER_PLAYLISTS == null || CACHED_USER_PLAYLISTS.isEmpty()) {
+                    loadAllUserPlaylists();
+                }
             }
         }
     }
@@ -316,6 +372,12 @@ public class MusicPlayerScreen extends Screen {
             this.searchBox.visible = isSearch;
             this.searchBox.setEditable(isSearch);
             this.btnSearch.visible = isSearch;
+        }
+
+        // 返回按钮：仅在 歌单 Tab 且 进入文件夹时 显示
+        if (btnBack != null) {
+            boolean showBack = (currentTab == Tab.PLAYLISTS && inPlaylistFolder);
+            this.btnBack.visible = showBack;
         }
 
         if (currentTab == Tab.PLAYLISTS && !inPlaylistFolder) {
@@ -343,7 +405,6 @@ public class MusicPlayerScreen extends Screen {
     }
 
     private void loadMyLikes() {
-        // 先清空当前列表，防止视觉混淆
         Minecraft.getInstance().execute(() -> songList.refreshList(new ArrayList<>()));
         loadPlaylistByIndex(0, "我喜欢的音乐");
     }
@@ -388,6 +449,13 @@ public class MusicPlayerScreen extends Screen {
     private void openPlaylistFolder(PlaylistInfo info) {
         inPlaylistFolder = true;
         currentFolderName = info.name;
+        currentPlaylistId = info.id; // 【新增】记录 ID
+
+        // 更新缓存
+        CACHED_IN_PLAYLIST_FOLDER = true;
+        CACHED_FOLDER_NAME = info.name;
+        CACHED_PLAYLIST_ID = info.id;
+
         updateTabVisibility();
         statusText = Component.literal("正在打开: " + info.name);
         new Thread(() -> loadSongsByPlaylistId(info.id)).start();
@@ -458,7 +526,7 @@ public class MusicPlayerScreen extends Screen {
 
         if (activeW > 0) g.fill(activeX - 2, topPos + 28, activeX + activeW + 2, topPos + 30, COLOR_ACCENT);
 
-        if (currentTab == Tab.SEARCH && searchBox != null) {
+        if (currentTab == Tab.SEARCH && searchBox != null && searchBox.visible) {
             g.fill(searchBox.getX() - 2, searchBox.getY() - 2, searchBox.getX() + searchBox.getWidth() + 2, searchBox.getY() + searchBox.getHeight() + 2, 0xFF202020);
         }
 
@@ -520,15 +588,13 @@ public class MusicPlayerScreen extends Screen {
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
-    // --- 内部类修复：必须拦截事件 ---
+    // --- 内部类 ---
 
     class SongListWidget extends ObjectSelectionList<SongListWidget.SongEntry> {
         public boolean visible = true;
         public SongListWidget(Minecraft mc, int width, int height, int top) {
             super(mc, width, height, top, top + height, 24);
         }
-
-        // 【核心修复】不可见时不处理任何鼠标事件
         @Override public boolean mouseClicked(double mx, double my, int btn) {
             if (!this.visible) return false;
             return super.mouseClicked(mx, my, btn);
@@ -541,7 +607,6 @@ public class MusicPlayerScreen extends Screen {
             if (!this.visible) return false;
             return super.mouseDragged(mx, my, btn, dx, dy);
         }
-
         public void refreshList(List<SongInfo> songs) {
             this.clearEntries();
             for (SongInfo s : songs) this.addEntry(new SongEntry(s));
@@ -589,8 +654,6 @@ public class MusicPlayerScreen extends Screen {
         public PlaylistListWidget(Minecraft mc, int width, int height, int top) {
             super(mc, width, height, top, top + height, 24);
         }
-
-        // 【核心修复】不可见时不处理任何鼠标事件
         @Override public boolean mouseClicked(double mx, double my, int btn) {
             if (!this.visible) return false;
             return super.mouseClicked(mx, my, btn);
@@ -603,7 +666,6 @@ public class MusicPlayerScreen extends Screen {
             if (!this.visible) return false;
             return super.mouseDragged(mx, my, btn, dx, dy);
         }
-
         public void refreshList(List<PlaylistInfo> playlists) {
             this.clearEntries();
             for (PlaylistInfo p : playlists) this.addEntry(new PlaylistEntry(p));
