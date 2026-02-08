@@ -52,30 +52,21 @@ public class GifUtils {
                     master = new BufferedImage(rawFrame.getWidth(), rawFrame.getHeight(), BufferedImage.TYPE_INT_ARGB);
                 }
 
-                // --- 1. 备份当前状态 (为了应对 restoreToPrevious) ---
-                // 获取当前帧的处置方法
+                // 1.获取当前帧的处置方法
                 String disposalMethod = getDisposalMethod(reader, i);
-
-                // 如果当前帧要求后续还原，我们得先存个档
-                // 注意：这里逻辑是"这一帧画完并显示后，下一帧开始前要还原成什么样"
-                // 但为了实现 restoreToPrevious，我们需要记录"画这一帧之前"的状态
                 BufferedImage frameStart = deepCopy(master);
 
-                // --- 2. 绘制当前帧 ---
+                // 2. 绘制当前帧
                 Graphics2D g2d = master.createGraphics();
                 g2d.drawImage(rawFrame, 0, 0, null);
                 g2d.dispose();
 
-                // --- 3. 保存结果到 MC 纹理 ---
+                // 3. 保存结果到 MC 纹理
                 result.images.add(convertToNative(deepCopy(master)));
                 result.delays.add(getDelay(reader, i));
 
-                // --- 4. 处理处置方法 (为下一帧做准备) ---
-                // none, doNotDispose, restoreToBackgroundColor, restoreToPrevious
-
                 if ("restoreToBackgroundColor".equals(disposalMethod)) {
                     // 处置方法 2: 恢复背景色 (通常是透明)
-                    // 简单粗暴：清空画布
                     Graphics2D gClear = master.createGraphics();
                     gClear.setComposite(AlphaComposite.Clear);
                     gClear.fillRect(0, 0, master.getWidth(), master.getHeight());

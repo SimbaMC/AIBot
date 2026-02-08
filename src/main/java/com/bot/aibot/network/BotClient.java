@@ -76,7 +76,7 @@ public class BotClient {
 
                 JsonObject params = new JsonObject();
                 params.addProperty("group_id", gid);
-                params.addProperty("message", message); // Gson 会自动处理引号、换行符等特殊字符
+                params.addProperty("message", message);
 
                 JsonObject root = new JsonObject();
                 root.addProperty("action", "send_group_msg");

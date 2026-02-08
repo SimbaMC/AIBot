@@ -12,29 +12,22 @@ import java.util.List;
 
 public class BotConfig {
 
-    // --- 服务端/通用配置 (aibot-common.toml) ---
     public static final ServerConfig SERVER;
     public static final ForgeConfigSpec SERVER_SPEC;
 
-    // --- 客户端配置 (aibot-client.toml) ---
     public static final ClientConfig CLIENT;
     public static final ForgeConfigSpec CLIENT_SPEC;
 
     static {
-        // 初始化服务端配置
         final Pair<ServerConfig, ForgeConfigSpec> serverPair = new ForgeConfigSpec.Builder().configure(ServerConfig::new);
         SERVER_SPEC = serverPair.getRight();
         SERVER = serverPair.getLeft();
 
-        // 初始化客户端配置
         final Pair<ClientConfig, ForgeConfigSpec> clientPair = new ForgeConfigSpec.Builder().configure(ClientConfig::new);
         CLIENT_SPEC = clientPair.getRight();
         CLIENT = clientPair.getLeft();
     }
 
-    /**
-     * 服务端配置类 (存全局设置)
-     */
     public static class ServerConfig {
         public final ForgeConfigSpec.ConfigValue<String> wsUrl;
         public final ForgeConfigSpec.ConfigValue<List<? extends Number>> groupIds;
@@ -64,103 +57,106 @@ public class BotConfig {
         public final ForgeConfigSpec.ConfigValue<String> advancementMsgFormat;
         public final ForgeConfigSpec.ConfigValue<String> startMsgFormat;
 
-        //QQ表情源 API
         public final ForgeConfigSpec.ConfigValue<String> qqFaceApi;
 
         public ServerConfig(ForgeConfigSpec.Builder builder) {
-            builder.comment("Bot 基础连接配置").push("general");
-            wsUrl = builder.define("ws_url", "ws://127.0.0.1:3001");
-            groupIds = builder.defineList("group_ids", Arrays.asList(0L), o -> o instanceof Number);
-            targetBotId = builder.define("target_bot_id", 0L);
-            qqFaceApi = builder.comment("QQ表情包 GIF 下载源 (必须包含 %s 用于替换 ID)")
-                    .define("qq_face_api", "https://koishi.js.org/QFace/assets/qq_emoji/%s/apng/%s.png");
+            builder.comment("bot链接配置").push("general");
+            wsUrl = builder.comment("WebSocket URL")
+                    .define("ws_url", "ws://127.0.0.1:3001");
+            groupIds = builder.comment("QQ群号列表")
+                    .defineList("group_ids", Arrays.asList(0L), o -> o instanceof Number);
+            targetBotId = builder.comment("目标机器人Q号")
+                    .define("target_bot_id", 0L);
+            qqFaceApi = builder.comment("QQ表情源码地址 (必须包含 %s)")
+                    .define("qq_face_api", "https://github.com/koishijs/QFace/blob/master/public/gif/%s.gif");
             builder.pop();
 
-            builder.comment("功能开关").push("features");
-            enableChatSync = builder.define("enable_chat_sync", true);
-            enableJoinLeave = builder.define("enable_join_leave", true);
-            enableDeath = builder.define("enable_death", true);
-            enableAdvancement = builder.define("enable_advancement", true);
+            builder.comment("Features").push("features");
+            enableChatSync = builder.comment("开启群聊同步")
+                    .define("enable_chat_sync", true);
+            enableJoinLeave = builder.comment("开启加入/离开消息播报")
+                    .define("enable_join_leave", true);
+            enableDeath = builder.comment("开启死亡消息播报")
+                    .define("enable_death", true);
+            enableAdvancement = builder.comment("开启成就消息播报")
+                    .define("enable_advancement", true);
             mcPrefix = builder.comment("服务器前缀").define("mc_prefix", "Server");
             broadcastCooldown = builder
-                    .comment("全服广播功能的冷却时间 (秒)，防止刷屏")
-                    .defineInRange("broadcast_cooldown", 600, 0, 3600);
+                    .comment("全服广播音乐冷却时间")
+                    .defineInRange("broadcast_cooldown", 600, 0, 3600);//默认600秒
             builder.pop();
 
-            builder.comment("AI 配置").push("ai_features");
-            enableAI = builder.define("enable_ai", false);
+            builder.comment("AI 设置").push("ai_features");
+            enableAI = builder.comment("开启AI聊天功能")
+                    .define("enable_ai", false);
             aiApiUrl = builder.define("api_url", "https://api.deepseek.com/chat/completions");
             aiApiKey = builder.define("api_key", "sk-xxxxxxxx");
             aiModelName = builder.define("model_name", "deepseek-chat");
-            aiPrompt = builder.define("system_prompt", "你是一个 Minecraft 助手...");
-            aiTriggerPrefix = builder.define("trigger_prefix", "bot ");
-            aiDeathMode = builder.defineInList("ai_death_mode", "HYBRID", Arrays.asList("OFF", "HYBRID", "AI_ONLY"));
-            aiDeathPrompt = builder.define("ai_death_prompt", "无情嘲讽玩家...");
+            aiPrompt = builder.comment("AI个性提示词")
+                    .define("system_prompt", "你是一个minecraft服务器助手...");
+            aiTriggerPrefix = builder.comment("AI触发词")
+                    .define("trigger_prefix", "bot ");//例子：玩家在聊天框中输入 bot 我想导管子。 ---即可触发ai聊天
+            aiDeathMode = builder.comment("AI死亡播报模式----OFF为关闭,HYBRID为混合（即优先加载已有汉化的死亡播报，如无汉化则使用ai翻译）,AI_ONLY为仅使用AI翻译")
+                    .defineInList("ai_death_mode", "HYBRID", Arrays.asList("OFF", "HYBRID", "AI_ONLY"));
+            aiDeathPrompt = builder.comment("AI死亡播报风格提示词")
+                    .define("ai_death_prompt", "无情的嘲讽玩家...");
             builder.pop();
 
-            builder.comment("消息格式").push("messages");
-            advancementMsgFormat = builder.define("advancement_msg", "%player% 取得了进度 [%advancement%]");
-            joinMsgFormat = builder.define("join_msg", "%player% 加入了服务器！");
-            leaveMsgFormat = builder.define("leave_msg", "%player% 离开了服务器。");
-            deathMsgFormat = builder.define("death_msg", "%msg%");
-            chatMsgFormat = builder.define("chat_format", "[%prefix%] %player%: %msg%");
-            startMsgFormat = builder.define("start_msg", "[%prefix%] Bot 已连接！");
+            builder.comment("消息设置").push("messages");
+            advancementMsgFormat = builder.comment("成就播报消息格式")
+                    .define("advancement_msg", "%player% 获得了成就 [%advancement%]");
+            joinMsgFormat = builder.comment("加入消息格式")
+                    .define("join_msg", "%player% 加入了服务器!");
+            leaveMsgFormat = builder.comment("离开消息格式")
+                    .define("leave_msg", "%player% 离开了服务器.");
+            deathMsgFormat = builder.comment("死亡消息播报格式-------不加任何文字即为播放游戏中弹出的死亡消息")
+                    .define("death_msg", "%msg%");
+            chatMsgFormat = builder.comment("聊天消息播报格式---默认格式例子：[Server]玩家名:消息")
+                    .define("chat_format", "[%prefix%] %player%: %msg%");
+            startMsgFormat = builder.comment("服务器连接通知")
+                    .define("start_msg", "[%prefix%] 群服互联已连接!");
             builder.pop();
-
         }
     }
 
-    /**
-     * 客户端配置类 (存个人隐私数据)
-     */
     public static class ClientConfig {
         public final ForgeConfigSpec.ConfigValue<String> neteaseCookie;
 
         public ClientConfig(ForgeConfigSpec.Builder builder) {
-            builder.comment("客户端设置 (个人数据)").push("client");
-
-            neteaseCookie = builder.comment("网易云音乐 Cookie (自动保存，请勿泄露)")
+            builder.comment("Client Settings").push("client");
+            neteaseCookie = builder.comment("网易云账号Cookie")
                     .define("netease_cookie", "");
-
             builder.pop();
         }
     }
 
-    /**
-     * 重载配置 (修复版)
-     */
     public static void refresh() {
         try {
-            // 1. 重载服务端配置 (aibot-common.toml)
             Path serverPath = FMLPaths.CONFIGDIR.get().resolve("aibot-common.toml");
-            System.out.println(">>> [Bot] Reloading Server Config: " + serverPath);
+            System.out.println(">>> [Bot] 正在重新加载服务器配置： " + serverPath);
 
-            // 使用更稳健的构建参数
             CommentedFileConfig serverConfig = CommentedFileConfig.builder(serverPath)
-                    .sync() // 开启同步
-                    // .autosave() // 【修复】移除自动保存，防止重载时旧内存值覆盖文件
+                    .sync()
                     .writingMode(WritingMode.REPLACE)
                     .build();
 
-            serverConfig.load(); // 读取文件
-            SERVER_SPEC.setConfig(serverConfig); // 应用配置
+            serverConfig.load();
+            SERVER_SPEC.setConfig(serverConfig);
 
-            // 2. 【新增】顺便重载客户端配置 (aibot-client.toml)
             Path clientPath = FMLPaths.CONFIGDIR.get().resolve("aibot-client.toml");
             if (clientPath.toFile().exists()) {
-                System.out.println(">>> [Bot] Reloading Client Config: " + clientPath);
+                System.out.println(">>> [Bot] 正在重新加载客户端配置: " + clientPath);
                 CommentedFileConfig clientConfig = CommentedFileConfig.builder(clientPath)
                         .sync()
-                        // .autosave() // 【修复】移除自动保存
                         .writingMode(WritingMode.REPLACE)
                         .build();
                 clientConfig.load();
                 CLIENT_SPEC.setConfig(clientConfig);
             }
 
-            System.out.println(">>> [Bot] 配置文件重载成功！");
+            System.out.println(">>> [Bot] 配置文件热重载成功！");
         } catch (Exception e) {
-            System.err.println(">>> [Bot] 配置文件重载失败！请检查 .toml 文件是否存在语法错误！");
+            System.err.println(">>> [Bot] 配置文件热重载失败！");
             e.printStackTrace();
         }
     }

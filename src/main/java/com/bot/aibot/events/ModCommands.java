@@ -31,12 +31,6 @@ public class ModCommands {
                         .then(Commands.literal("login")
                                 .executes(context -> {
                                     context.getSource().sendSuccess(() -> Component.literal("§b[Bot] 请在弹出的窗口中扫码登录网易云..."), false);
-                                    // 依然使用新包 Action.OPEN_GUI (因为登录通常也是打开GUI的一部分，或者你可以保持特殊的处理)
-                                    // 但根据之前的逻辑，login 似乎主要是为了触发二维码。
-                                    // 既然我们之前只有 OPEN_GUI，这里可以用 OPEN_GUI，或者暂时不动客户端的 LoginQrScreen 逻辑（那个是 ClientCommand 还是什么？）
-                                    // 如果你在服务端没有专门发给 login 的包，这里可以用 OPEN_GUI 打开主界面，让玩家点登录。
-                                    // 或者，这里可以发一个 OPEN_GUI，参数里带个标记？
-                                    // 为了简单起见，这里先打开主 GUI
                                     PacketHandler.sendToPlayer(
                                             new S2CMusicCommandPacket(S2CMusicCommandPacket.Action.OPEN_GUI),
                                             context.getSource().getPlayerOrException()
@@ -47,7 +41,7 @@ public class ModCommands {
                         // 子指令: stop
                         .then(Commands.literal("stop")
                                 .executes(context -> {
-                                    // 【修复】发送 STOP 指令
+                                    // 发送 STOP 指令
                                     PacketHandler.sendToPlayer(
                                             new S2CMusicCommandPacket(S2CMusicCommandPacket.Action.STOP),
                                             context.getSource().getPlayerOrException()
@@ -58,7 +52,7 @@ public class ModCommands {
                         // 子指令: gui
                         .then(Commands.literal("gui")
                                 .executes(context -> {
-                                    // 【修复】发送 OPEN_GUI 指令
+                                    // OPEN_GUI 指令
                                     PacketHandler.sendToPlayer(
                                             new S2CMusicCommandPacket(S2CMusicCommandPacket.Action.OPEN_GUI),
                                             context.getSource().getPlayerOrException()

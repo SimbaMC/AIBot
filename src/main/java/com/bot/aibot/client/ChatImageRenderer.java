@@ -58,7 +58,7 @@ public class ChatImageRenderer {
     }
 
     private static void renderImagePreview(net.minecraft.client.gui.GuiGraphics g, String url, int mx, int my) {
-        // --- 这里的逻辑变了 ---
+
         Object obj = ImageCacheManager.getTextureOrAnim(url);
         ResourceLocation tex = null;
 

@@ -50,7 +50,6 @@ public class ClientPacketHandler {
             return;
         }
 
-        // --- 以下功能需要 API 请求，开启新线程 ---
         new Thread(() -> {
             // 4. 搜索指令
             if (action == S2CMusicCommandPacket.Action.SEARCH_AND_PLAY) {
@@ -81,7 +80,7 @@ public class ClientPacketHandler {
                 // 获取歌单列表
                 JsonArray playlists = NeteaseApi.getUserPlaylists(uid);
                 if (playlists != null && playlists.size() > 0) {
-                    // 通常第一个歌单就是“我喜欢的音乐”
+
                     JsonObject favList = playlists.get(0).getAsJsonObject();
                     long playlistId = favList.get("id").getAsLong();
 

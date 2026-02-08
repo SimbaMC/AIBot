@@ -1,7 +1,6 @@
 package com.bot.aibot.utils;
 
 import com.mojang.blaze3d.platform.NativeImage;
-import net.minecraft.client.Minecraft;
 
 import javax.imageio.ImageIO;
 import java.awt.AlphaComposite;
@@ -11,7 +10,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -40,7 +38,7 @@ public class ApngUtils {
             int canvasWidth = bytesToInt(ihdr.data, 0);
             int canvasHeight = bytesToInt(ihdr.data, 4);
 
-            // 公共块 (PLTE, tRNS 等需要复制到每一帧)
+            // 公共块
             List<Chunk> globalChunks = new ArrayList<>();
             for (Chunk c : chunks) {
                 if (isGlobalChunk(c.type)) globalChunks.add(c);
@@ -200,9 +198,6 @@ public class ApngUtils {
         byte disposeOp, blendOp;
 
         public FrameControl(byte[] d) {
-            // fcTL 结构: sequence(4), width(4), height(4), x(4), y(4), delay_num(2), delay_den(2), dispose(1), blend(1)
-            // 注意：我们解析时是从 data 开始，不包含 length/type
-            // sequence 在外部处理或者在这里忽略
             width = bytesToInt(d, 4);
             height = bytesToInt(d, 8);
             xOffset = bytesToInt(d, 12);
@@ -258,7 +253,7 @@ public class ApngUtils {
         b[off] = (byte)(v>>>24); b[off+1] = (byte)(v>>>16); b[off+2] = (byte)(v>>>8); b[off+3] = (byte)v;
     }
 
-    // 图像复制与转换 (直接复用 GifUtils 的逻辑，或者再写一遍)
+    // 图像复制与转换
     private static BufferedImage deepCopy(BufferedImage bi) {
         BufferedImage copy = new BufferedImage(bi.getWidth(), bi.getHeight(), bi.getType());
         Graphics2D g = copy.createGraphics();

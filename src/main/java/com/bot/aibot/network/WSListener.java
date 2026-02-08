@@ -133,11 +133,8 @@ public class WSListener implements WebSocket.Listener {
                         if (faceId != null) {
                             String template = BotConfig.SERVER.qqFaceApi.get();
                             try {
-                                // 【关键修复】传入两次 faceId，兼容 "%s/png/%s.png" 这种需要填两个坑的格式
-                                // 如果模板里只有一个 %s，Java 会自动忽略多余的参数，不会报错
                                 targetUrl = String.format(template, faceId, faceId);
 
-                                // 打印调试日志，让你知道最终请求的是啥
                                 System.out.println(">>> [Bot] 生成表情链接: " + targetUrl);
                             } catch (Exception e) {
                                 System.err.println(">>> [Bot] URL 格式化失败: " + e.getMessage());
