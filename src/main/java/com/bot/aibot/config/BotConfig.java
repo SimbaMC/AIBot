@@ -64,11 +64,16 @@ public class BotConfig {
         public final ForgeConfigSpec.ConfigValue<String> advancementMsgFormat;
         public final ForgeConfigSpec.ConfigValue<String> startMsgFormat;
 
+        //QQ表情源 API
+        public final ForgeConfigSpec.ConfigValue<String> qqFaceApi;
+
         public ServerConfig(ForgeConfigSpec.Builder builder) {
             builder.comment("Bot 基础连接配置").push("general");
             wsUrl = builder.define("ws_url", "ws://127.0.0.1:3001");
             groupIds = builder.defineList("group_ids", Arrays.asList(0L), o -> o instanceof Number);
             targetBotId = builder.define("target_bot_id", 0L);
+            qqFaceApi = builder.comment("QQ表情包 GIF 下载源 (必须包含 %s 用于替换 ID)")
+                    .define("qq_face_api", "https://github.com/koishijs/QFace/blob/master/public/gif/%s.gif");
             builder.pop();
 
             builder.comment("功能开关").push("features");
