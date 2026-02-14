@@ -115,7 +115,7 @@ public class ClientMusicManager {
                 if (isPlaying) {
                     finishedNaturally = true;
                 }
-            } catch (Throwable e) { // 【修改】从 Exception 改为 Throwable
+            } catch (Throwable e) {
                 System.err.println(">>> [Music Error] 播放线程崩溃: " + e.getMessage());
                 e.printStackTrace();
 

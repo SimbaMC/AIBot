@@ -34,7 +34,6 @@ public class LLMClient {
 
         String basePrompt = BotConfig.SERVER.aiPrompt.get();
 
-        // --- 1. 构建全新的 System Prompt ---
         String systemPrompt = basePrompt +
                 "\n\n[核心协议指令]：" +
                 "\n请严格遵守以下指令格式，将指令代码放在回复的【最后一行】。指令行不要包含其他标点符号。" +
@@ -51,12 +50,10 @@ public class LLMClient {
 
         String userContent = "玩家[" + playerName + "]说: " + userMessage;
 
-        // 使用第一步封装的 HttpUtils (如果之前还没改 sendRequest，记得改一下)
         sendRequest(systemPrompt, userContent, 0.7, aiReply -> {
             // --- DEBUG ---
             System.out.println(">>> [LLM] 原始回复: " + aiReply);
 
-            // --- 2. 解析逻辑 ---
             String chatContent = aiReply;
             String commandLine = null;
 
@@ -69,12 +66,12 @@ public class LLMClient {
                 chatContent = aiReply.substring(0, actionIndex).trim();
             }
 
-            // --- 3. 执行指令 ---
+            // --- 执行指令 ---
             if (commandLine != null) {
                 executeCommand(player, commandLine);
             }
 
-            // --- 4. 发送聊天回复 ---
+            // --- 发送聊天回复 ---
             if (!chatContent.isEmpty()) {
                 replyToPlayer(player, chatContent);
             }
@@ -122,13 +119,11 @@ public class LLMClient {
     }
 
     /**
-     * 【核心修改】异步点歌逻辑 -> 改为发送 S2CRequestSearchPacket
+     *
      */
     private static void handleAiMusic(ServerPlayer player, String keyword, boolean isGlobal) {
         System.out.println(">>> [Music Debug] AI 发起搜索: [" + keyword + "]");
 
-        // 使用新包 Action.SEARCH_AND_PLAY
-        // extra 参数我们约定：1代表全服，0代表私享 (目前客户端逻辑没用到这个区分，主要是汇报回去的时候用，先传1备用)
         S2CMusicCommandPacket packet = new S2CMusicCommandPacket(
                 S2CMusicCommandPacket.Action.SEARCH_AND_PLAY,
                 keyword,
@@ -139,7 +134,6 @@ public class LLMClient {
     }
 
     private static void handleStopMusic(ServerPlayer player) {
-        // 使用新包 Action.STOP
         PacketHandler.sendToPlayer(new S2CMusicCommandPacket(S2CMusicCommandPacket.Action.STOP), player);
     }
 

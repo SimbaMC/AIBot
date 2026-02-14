@@ -32,6 +32,7 @@ public class BotConfig {
         public final ForgeConfigSpec.ConfigValue<String> wsUrl;
         public final ForgeConfigSpec.ConfigValue<List<? extends Number>> groupIds;
         public final ForgeConfigSpec.ConfigValue<Long> targetBotId;
+        public final ForgeConfigSpec.ConfigValue<String> accessToken;
 
         public final ForgeConfigSpec.BooleanValue enableChatSync;
         public final ForgeConfigSpec.BooleanValue enableJoinLeave;
@@ -63,6 +64,8 @@ public class BotConfig {
             builder.comment("bot链接配置").push("general");
             wsUrl = builder.comment("WebSocket URL")
                     .define("ws_url", "ws://127.0.0.1:3001");
+            accessToken = builder.comment("NapCat/OneBot 鉴权 Token (如果未开启鉴权请留空)")
+                    .define("access_token", "");
             groupIds = builder.comment("QQ群号列表")
                     .defineList("group_ids", Arrays.asList(0L), o -> o instanceof Number);
             targetBotId = builder.comment("目标机器人Q号")

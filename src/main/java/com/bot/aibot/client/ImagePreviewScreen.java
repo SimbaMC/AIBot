@@ -37,8 +37,7 @@ public class ImagePreviewScreen extends Screen {
             int maxW = this.width - padding * 2;
             int maxH = this.height - padding * 2;
 
-            // 这里为了简单，暂不计算原始宽高比，直接填满中间区域
-            // 如果你想保持比例，需要在 ImageCacheManager 里存储宽高，或者用高级渲染
+
             g.blit(tex, padding, padding, 0, 0, maxW, maxH, maxW, maxH);
         } else {
             g.drawCenteredString(this.font, "图片加载中...", this.width / 2, this.height / 2, 0xAAAAAA);

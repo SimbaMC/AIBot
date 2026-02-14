@@ -21,7 +21,6 @@ import java.util.regex.Pattern;
 public class WSListener implements WebSocket.Listener {
 
     private final StringBuilder buffer = new StringBuilder();
-    // 匹配 [CQ:image...] 或 [CQ:face...]
     private static final Pattern CQ_PATTERN = Pattern.compile("\\[CQ:(image|face),(.*?)\\]");
     private static final int MAX_BUFFER_SIZE = 1024 * 1024;
 
@@ -89,18 +88,27 @@ public class WSListener implements WebSocket.Listener {
         if (json.has("raw_message")) rawMsg = json.get("raw_message").getAsString();
         else if (json.has("message")) rawMsg = json.get("message").getAsString();
 
+        // 提取发送者信息
         String senderName = "未知";
         if (json.has("sender") && json.get("sender").isJsonObject()) {
-            senderName = json.get("sender").getAsJsonObject().get("nickname").getAsString();
+            JsonObject sender = json.get("sender").getAsJsonObject();
+            senderName = sender.get("nickname").getAsString();
         }
 
         System.out.println(">>> [Bot] 群消息 [" + fromGroup + "] " + senderName + ": " + rawMsg);
-
         String cleanMsg = rawMsg.trim();
+
+        // ==================== 指令区 ====================
+
+        // 1. 状态查询 (!status) - 【保留】
         if ("!status".equalsIgnoreCase(cleanMsg) || "!状态".equals(cleanMsg)) {
             handleStatusCommmand(fromGroup);
             return;
         }
+
+        // (!load 和 !bind 已移除)
+
+        // ==================== 转发区 ====================
 
         if (BotConfig.SERVER.enableChatSync.get() && BottyMod.serverInstance != null) {
             final String finalSenderName = senderName;
@@ -127,22 +135,18 @@ public class WSListener implements WebSocket.Listener {
                         displayText = "§b[📷图片]§r";
                     } else if ("face".equals(type)) {
                         String faceId = extractValue(params, "id");
-                        // 如果没提取到 id，可能是参数太乱，尝试兜底解析
                         if (faceId == null) faceId = extractValueSimple(params, "id");
 
                         if (faceId != null) {
                             String template = BotConfig.SERVER.qqFaceApi.get();
                             try {
+                                // 兼容双 %s 格式
                                 targetUrl = String.format(template, faceId, faceId);
-
-                                System.out.println(">>> [Bot] 生成表情链接: " + targetUrl);
                             } catch (Exception e) {
-                                System.err.println(">>> [Bot] URL 格式化失败: " + e.getMessage());
+                                targetUrl = String.format(template, faceId);
                             }
                             displayText = "§e[😀表情]§r";
                             color = 0xFFAA00;
-                        } else {
-                            System.err.println(">>> [Bot] 表情 ID 提取失败，参数: " + params);
                         }
                     }
 
@@ -170,23 +174,49 @@ public class WSListener implements WebSocket.Listener {
         }
     }
 
-    // 增强版参数提取
+    // --- 指令处理方法 ---
+
+    private void handleStatusCommmand(long groupId) {
+        if (BottyMod.serverInstance == null) return;
+
+        // 放入主线程执行，防止并发异常
+        BottyMod.serverInstance.execute(() -> {
+            String prefix = BotConfig.SERVER.mcPrefix.get();
+            int online = BottyMod.serverInstance.getPlayerList().getPlayerCount();
+            int max = BottyMod.serverInstance.getMaxPlayers();
+            double mspt = BottyMod.serverInstance.getAverageTickTime();
+            String tps = String.format("%.1f", Math.min(1000.0 / mspt, 20.0));
+            String msptStr = String.format("%.1f", mspt);
+
+            List<String> names = new ArrayList<>();
+            int totalPing = 0;
+            List<ServerPlayer> players = BottyMod.serverInstance.getPlayerList().getPlayers();
+            for (ServerPlayer player : players) {
+                names.add(player.getName().getString());
+                totalPing += player.latency;
+            }
+            int avgPing = players.isEmpty() ? 0 : (totalPing / players.size());
+            String playerStr = names.isEmpty() ? "无" : String.join(", ", names);
+
+            // 构造消息内容
+            String msg = String.format("[%s] 📊 服务器状态\n👥 在线: %d/%d\n⚡ TPS: %s (MSPT: %sms)\n📶 延迟: %dms\n🎮 玩家: %s",
+                    prefix, online, max, tps, msptStr, avgPing, playerStr);
+
+            // 使用 sendMessageToQQ 发送
+            BotClient.getInstance().sendMessageToQQ(msg);
+        });
+    }
+
     private String extractValue(String params, String key) {
         try {
-            // 匹配 key=value
-            // 排除 , ] 和空白字符，确保提取干净的 ID
             Pattern p = Pattern.compile(key + "=([^,\\]\\s]+)");
             Matcher m = p.matcher(params);
-            if (m.find()) {
-                return m.group(1).trim();
-            }
+            if (m.find()) return m.group(1).trim();
         } catch (Exception e) {}
         return null;
     }
 
-    // 简单粗暴提取 (兜底)
     private String extractValueSimple(String params, String key) {
-        // 如果正则挂了，手动切字符串
         String[] parts = params.split(",");
         for (String part : parts) {
             if (part.trim().startsWith(key + "=")) {
@@ -196,28 +226,6 @@ public class WSListener implements WebSocket.Listener {
         return null;
     }
 
-    private void handleStatusCommmand(long groupId) {
-        if (BottyMod.serverInstance == null) return;
-        String prefix = BotConfig.SERVER.mcPrefix.get();
-        int online = BottyMod.serverInstance.getPlayerList().getPlayerCount();
-        int max = BottyMod.serverInstance.getMaxPlayers();
-        double mspt = BottyMod.serverInstance.getAverageTickTime();
-        String tps = String.format("%.1f", Math.min(1000.0 / mspt, 20.0));
-        String msptStr = String.format("%.1f", mspt);
-        List<String> names = new ArrayList<>();
-        int totalPing = 0;
-        List<ServerPlayer> players = BottyMod.serverInstance.getPlayerList().getPlayers();
-        for (ServerPlayer player : players) {
-            names.add(player.getName().getString());
-            totalPing += player.latency;
-        }
-        int avgPing = players.isEmpty() ? 0 : (totalPing / players.size());
-        String playerStr = names.isEmpty() ? "无" : String.join(", ", names);
-        String msg = String.format("[%s] 📊 服务器状态\\n👥 在线: %d/%d\\n⚡ TPS: %s (MSPT: %sms)\\n📶 延迟: %dms\\n🎮 玩家: %s",
-                prefix, online, max, tps, msptStr, avgPing, playerStr);
-        BotClient.getInstance().sendRawJson("{\"action\":\"send_group_msg\",\"params\":{\"group_id\":" + groupId + ",\"message\":\"" + msg + "\"}}");
-    }
-
     private void sendStartMessage(WebSocket webSocket) {
         try {
             String template = BotConfig.SERVER.startMsgFormat.get();
@@ -225,10 +233,29 @@ public class WSListener implements WebSocket.Listener {
             List<? extends Number> groups = BotConfig.SERVER.groupIds.get();
             String msg = template.replace("%prefix%", prefix);
             for (Number groupId : groups) {
-                webSocket.sendText("{\"action\":\"send_group_msg\",\"params\":{\"group_id\":" + groupId + ",\"message\":\"" + msg + "\"}}", true);
+                JsonObject params = new JsonObject();
+                params.addProperty("group_id", groupId);
+                params.addProperty("message", msg);
+                JsonObject root = new JsonObject();
+                root.addProperty("action", "send_group_msg");
+                root.add("params", params);
+                webSocket.sendText(root.toString(), true);
             }
         } catch (Exception e) {
             System.out.println(">>> [Bot] 发送启动消息失败: " + e.getMessage());
         }
+    }
+
+    @Override
+    public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
+        System.out.println(">>> [Bot] WebSocket 关闭: " + reason);
+        BotClient.getInstance().onDisconnect();
+        return null;
+    }
+
+    @Override
+    public void onError(WebSocket webSocket, Throwable error) {
+        System.err.println(">>> [Bot] WebSocket 错误: " + error.getMessage());
+        BotClient.getInstance().onDisconnect();
     }
 }

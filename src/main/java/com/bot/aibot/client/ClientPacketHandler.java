@@ -16,7 +16,6 @@ import java.util.Random;
 
 public class ClientPacketHandler {
 
-    // 修改入口方法签名，适配新 Packet
     public static void handle(S2CMusicCommandPacket.Action action, String data, long extra) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
@@ -119,7 +118,6 @@ public class ClientPacketHandler {
         }
 
         // 发送给服务端，请求全服/个人播放
-        // 注意：这里我们统一用 ReportMusicPacket 汇报结果，服务端收到后会决定是广播还是怎样
         PacketHandler.sendToServer(new C2SReportMusicPacket(url, songName, duration, isGlobal));
     }
 }
