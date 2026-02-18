@@ -57,10 +57,25 @@ public class BotConfig {
         public final ForgeConfigSpec.ConfigValue<String> chatMsgFormat;
         public final ForgeConfigSpec.ConfigValue<String> advancementMsgFormat;
         public final ForgeConfigSpec.ConfigValue<String> startMsgFormat;
+        // 1. 节点映射列表
+        public final ForgeConfigSpec.ConfigValue<List<? extends String>> nodeMappings;
+        // 2. 未匹配时的默认名称
+        public final ForgeConfigSpec.ConfigValue<String> defaultNodeName;
 
         public final ForgeConfigSpec.ConfigValue<String> qqFaceApi;
 
         public ServerConfig(ForgeConfigSpec.Builder builder) {
+            builder.push("Status_Command_Settings"); // 建议新开一个分类方便管理
+
+            nodeMappings = builder
+                    .comment("节点 IP 映射配置。格式为 'IP:节点名'", "例如: ['127.0.0.1:本地节点', '1.2.3.4:上海中转']")
+                    .defineList("nodeMappings", List.of("127.0.0.1:本地节点"), o -> o instanceof String);
+
+            defaultNodeName = builder
+                    .comment("当玩家 IP 不在映射列表中时显示的名称")
+                    .define("defaultNodeName", "直连");
+
+            builder.pop();
             builder.comment("bot链接配置").push("general");
             wsUrl = builder.comment("WebSocket URL")
                     .define("ws_url", "ws://127.0.0.1:3001");

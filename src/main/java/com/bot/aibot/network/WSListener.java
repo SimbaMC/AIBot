@@ -177,33 +177,90 @@ public class WSListener implements WebSocket.Listener {
     // --- 指令处理方法 ---
 
     private void handleStatusCommmand(long groupId) {
-        if (BottyMod.serverInstance == null) return;
+        if (com.bot.aibot.BottyMod.serverInstance == null) return;
 
-        // 放入主线程执行，防止并发异常
-        BottyMod.serverInstance.execute(() -> {
-            String prefix = BotConfig.SERVER.mcPrefix.get();
-            int online = BottyMod.serverInstance.getPlayerList().getPlayerCount();
-            int max = BottyMod.serverInstance.getMaxPlayers();
-            double mspt = BottyMod.serverInstance.getAverageTickTime();
-            String tps = String.format("%.1f", Math.min(1000.0 / mspt, 20.0));
-            String msptStr = String.format("%.1f", mspt);
+        // 放入主线程执行，防止获取玩家列表时出现并发修改异常
+        com.bot.aibot.BottyMod.serverInstance.execute(() -> {
+            try {
+                String prefix = com.bot.aibot.config.BotConfig.SERVER.mcPrefix.get();
+                int online = com.bot.aibot.BottyMod.serverInstance.getPlayerList().getPlayerCount();
+                int max = com.bot.aibot.BottyMod.serverInstance.getMaxPlayers();
 
-            List<String> names = new ArrayList<>();
-            int totalPing = 0;
-            List<ServerPlayer> players = BottyMod.serverInstance.getPlayerList().getPlayers();
-            for (ServerPlayer player : players) {
-                names.add(player.getName().getString());
-                totalPing += player.latency;
+                // 1. 加载配置并构建 IP 映射表 (IP -> 节点名)
+                java.util.Map<String, String> ipMap = new java.util.HashMap<>();
+                java.util.List<? extends String> configMappings = com.bot.aibot.config.BotConfig.SERVER.nodeMappings.get();
+                for (String s : configMappings) {
+                    String[] parts = s.split(":", 2);
+                    if (parts.length == 2) {
+                        ipMap.put(parts[0].trim(), parts[1].trim());
+                    }
+                }
+                String defaultNode = com.bot.aibot.config.BotConfig.SERVER.defaultNodeName.get();
+
+                // 计算 TPS 和 MSPT
+                double mspt = com.bot.aibot.BottyMod.serverInstance.getAverageTickTime();
+                String tpsStr = String.format("%.1f", Math.min(1000.0 / mspt, 20.0));
+                String msptStr = String.format("%.1f", mspt);
+
+                // 获取玩家列表及详细信息
+                java.util.List<net.minecraft.server.level.ServerPlayer> players = com.bot.aibot.BottyMod.serverInstance.getPlayerList().getPlayers();
+                java.util.List<String> playerDetails = new java.util.ArrayList<>();
+                int totalPing = 0;
+
+                for (net.minecraft.server.level.ServerPlayer player : players) {
+                    String name = player.getName().getString();
+                    int ping = player.latency; // 访问 ServerPlayer 中的公开变量
+                    totalPing += ping;
+
+                    // 检测是否为 OP (权限等级 4)
+                    boolean isOp = player.hasPermissions(4);
+                    String opSymbol = isOp ? "🛡️ " : "";
+
+                    // 获取并识别节点名
+                    String nodeName = defaultNode;
+                    try {
+                        // 获取远程地址字符串，例如 "/1.2.3.4:56789"
+                        String fullAddress = player.connection.connection.getRemoteAddress().toString();
+                        if (fullAddress.startsWith("/")) {
+                            fullAddress = fullAddress.substring(1);
+                        }
+                        // 剥离端口号，只保留 IP 部分进行匹配
+                        String ipOnly = fullAddress.split(":")[0];
+
+                        // 从映射表中查找匹配的节点名
+                        nodeName = ipMap.getOrDefault(ipOnly, defaultNode);
+                    } catch (Exception e) {
+                        // 出现异常则保持为默认值
+                    }
+
+                    playerDetails.add(opSymbol + name + " [" + nodeName + "] (" + ping + "ms)");
+                }
+
+                // 计算平均延迟
+                int avgPing = players.isEmpty() ? 0 : (totalPing / players.size());
+
+                // 构造玩家列表字符串 (一人一行)
+                StringBuilder playerListBuilder = new StringBuilder();
+                if (playerDetails.isEmpty()) {
+                    playerListBuilder.append("无");
+                } else {
+                    for (String detail : playerDetails) {
+                        playerListBuilder.append("\n● ").append(detail);
+                    }
+                }
+                String playerStr = playerListBuilder.toString();
+
+                // 构造最终发送给 QQ 的消息
+                String msg = String.format("[%s] 📊 服务器状态\n👥 在线: %d/%d\n⚡ TPS: %s (MSPT: %sms)\n📶 平均延迟: %dms\n\n🎮 在线玩家 : %s",
+                        prefix, online, max, tpsStr, msptStr, avgPing, playerStr);
+
+                // 发送到 QQ
+                com.bot.aibot.network.BotClient.getInstance().sendMessageToQQ(msg);
+
+            } catch (Exception e) {
+                System.err.println(">>> [Bot] 状态指令执行异常: " + e.getMessage());
+                e.printStackTrace();
             }
-            int avgPing = players.isEmpty() ? 0 : (totalPing / players.size());
-            String playerStr = names.isEmpty() ? "无" : String.join(", ", names);
-
-            // 构造消息内容
-            String msg = String.format("[%s] 📊 服务器状态\n👥 在线: %d/%d\n⚡ TPS: %s (MSPT: %sms)\n📶 延迟: %dms\n🎮 玩家: %s",
-                    prefix, online, max, tps, msptStr, avgPing, playerStr);
-
-            // 使用 sendMessageToQQ 发送
-            BotClient.getInstance().sendMessageToQQ(msg);
         });
     }
 
@@ -248,14 +305,13 @@ public class WSListener implements WebSocket.Listener {
 
     @Override
     public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-        System.out.println(">>> [Bot] WebSocket 关闭: " + reason);
-        BotClient.getInstance().onDisconnect();
-        return null;
+        BotClient.getInstance().onDisconnect(webSocket, "Closed: " + reason);
+        return WebSocket.Listener.super.onClose(webSocket, statusCode, reason);
     }
 
     @Override
     public void onError(WebSocket webSocket, Throwable error) {
-        System.err.println(">>> [Bot] WebSocket 错误: " + error.getMessage());
-        BotClient.getInstance().onDisconnect();
+        BotClient.getInstance().onDisconnect(webSocket, "Error: " + error.getMessage());
+        WebSocket.Listener.super.onError(webSocket, error);
     }
 }
