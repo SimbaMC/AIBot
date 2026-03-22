@@ -73,9 +73,9 @@ public class BotConfig {
             groupIds = builder.defineList("group_ids", Arrays.asList(0L), o -> o instanceof Number);
             targetBotId = builder.define("target_bot_id", 0L);
             reconnectEnabled = builder.comment("是否在断开连接后自动重连").define("reconnect_enabled", true);
-            reconnectInitialInterval = builder.comment("初始重连间隔（秒）").defineInRange("reconnect_initial_interval", 5, 1, 60);
-            reconnectMultiplier = builder.comment("重连间隔指数退避倍率（每次失败后乘以此值）").defineInRange("reconnect_multiplier", 2.0, 1.0, 10.0);
-            reconnectMaxInterval = builder.comment("最大重连间隔上限（秒）").defineInRange("reconnect_max_interval", 300, 10, 3600);
+            reconnectInitialInterval = builder.comment("初始重连间隔（秒）").defineInRange("reconnect_initial_interval", 5, 1, Integer.MAX_VALUE);
+            reconnectMultiplier = builder.comment("重连间隔指数退避倍率（每次失败后乘以此值）").defineInRange("reconnect_multiplier", 2.0, 1.0, (double) Integer.MAX_VALUE);
+            reconnectMaxInterval = builder.comment("最大重连间隔上限（秒）").defineInRange("reconnect_max_interval", 300, 1, Integer.MAX_VALUE);
             builder.pop();
 
             builder.comment("功能开关").push("features");
