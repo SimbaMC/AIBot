@@ -10,6 +10,7 @@ import net.minecraft.server.level.ServerPlayer;
 import java.net.http.WebSocket;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
 public class WSListener implements WebSocket.Listener {
@@ -21,6 +22,9 @@ public class WSListener implements WebSocket.Listener {
     public void onOpen(WebSocket webSocket) {
         System.out.println(">>> [Bot] 连接成功！等待消息...");
         webSocket.request(1);
+
+        // 通知 BotClient 连接已建立，重置重连计数器
+        BotClient.getInstance().onConnected();
 
         // 1. 游戏内广播
         if (BottyMod.serverInstance != null) {
@@ -196,5 +200,27 @@ public class WSListener implements WebSocket.Listener {
         } catch (Exception e) {
             System.out.println(">>> [Bot] 发送启动消息失败: " + e.getMessage());
         }
+    }
+
+    @Override
+    public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
+        System.out.println(">>> [Bot] 连接断开 (Code: " + statusCode + ", Reason: " + reason + ")");
+        BotClient.getInstance().clearWebSocket();
+
+        if (BottyMod.serverInstance != null) {
+            BottyMod.serverInstance.execute(() ->
+                    BottyMod.serverInstance.getPlayerList().broadcastSystemMessage(Component.literal("§c[Bot] 连接断开！"), false)
+            );
+        }
+
+        BotClient.getInstance().scheduleReconnect();
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public void onError(WebSocket webSocket, Throwable error) {
+        System.out.println(">>> [Bot] 连接错误: " + error.getMessage());
+        BotClient.getInstance().clearWebSocket();
+        BotClient.getInstance().scheduleReconnect();
     }
 }
