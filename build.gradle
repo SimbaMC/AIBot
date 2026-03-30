@@ -4,6 +4,7 @@ plugins {
     id 'maven-publish'
     id 'net.minecraftforge.gradle' version '[6.0,6.2)'
     id 'com.github.johnrengelman.shadow' version '8.1.1'
+    id 'org.spongepowered.mixin' version '0.7.+'
 }
 
 version = mod_version
@@ -19,6 +20,7 @@ minecraft {
     mappings channel: mapping_channel, version: mapping_version
     copyIdeResources = true
 
+
     runs {
         configureEach {
             workingDirectory project.file('run')
@@ -33,13 +35,27 @@ minecraft {
 
         client {
             property 'forge.enabledGameTestNamespaces', mod_id
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+            arg "-mixin.config=aibot.mixins.json"
+
+            property 'forge.enabledGameTestNamespaces', mod_id
         }
 
         server {
             property 'forge.enabledGameTestNamespaces', mod_id
             args '--nogui'
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
+            arg "-mixin.config=aibot.mixins.json"
+
+            property 'forge.enabledGameTestNamespaces', mod_id
         }
     }
+}
+mixin {
+    add sourceSets.main, "aibot.refmap.json"
+    config "aibot.mixins.json"
 }
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }
@@ -59,6 +75,7 @@ configurations {
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
 
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
     shade 'javazoom:jlayer:1.0.1'
     minecraftLibrary 'javazoom:jlayer:1.0.1'
