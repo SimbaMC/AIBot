@@ -19,51 +19,11 @@ public class PacketHandler {
 
     public static void register() {
         int id = 0;
-        INSTANCE.messageBuilder(S2CPlayMusicPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .decoder(S2CPlayMusicPacket::new)
-                .encoder(S2CPlayMusicPacket::encode)
-                .consumerMainThread(S2CPlayMusicPacket::handle)
-                .add();
 
-        INSTANCE.messageBuilder(S2CMusicControlPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .decoder(S2CMusicControlPacket::new)
-                .encoder(S2CMusicControlPacket::encode)
-                .consumerMainThread(S2CMusicControlPacket::handle)
-                .add();
-
-        // 【新增】注册登录请求包 (服务端 -> 客户端)
-        // 注册了这一行，IDE 就不会报 "构造函数未使用" 的警告了
-        INSTANCE.messageBuilder(S2CRequestLoginPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .decoder(S2CRequestLoginPacket::new)  // <--- 这里调用了那个构造函数
-                .encoder(S2CRequestLoginPacket::encode)
-                .consumerMainThread(S2CRequestLoginPacket::handle)
-                .add();
-
-        // 【新增】注册停止登录包 (服务端 -> 客户端)
-        INSTANCE.messageBuilder(S2CStopLoginPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .decoder(S2CStopLoginPacket::new)
-                .encoder(S2CStopLoginPacket::encode)
-                .consumerMainThread(S2CStopLoginPacket::handle)
-                .add();
-
-        // 【新增】还有之前说的搜歌请求包 (服务端 -> 客户端)
-        INSTANCE.messageBuilder(S2CRequestSearchPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .decoder(S2CRequestSearchPacket::new)
-                .encoder(S2CRequestSearchPacket::encode)
-                .consumerMainThread(S2CRequestSearchPacket::handle)
-                .add();
-
-        // 【新增】还有搜歌结果上报包 (客户端 -> 服务端)
         INSTANCE.messageBuilder(C2SReportMusicPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .decoder(C2SReportMusicPacket::new)
                 .encoder(C2SReportMusicPacket::encode)
                 .consumerMainThread(C2SReportMusicPacket::handle)
-                .add();
-
-        INSTANCE.messageBuilder(S2CRequestActionPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .decoder(S2CRequestActionPacket::new)
-                .encoder(S2CRequestActionPacket::encode)
-                .consumerMainThread(S2CRequestActionPacket::handle)
                 .add();
 
         // 【新增】注册 C2SMusicActionPacket
@@ -71,6 +31,13 @@ public class PacketHandler {
                 .decoder(C2SMusicActionPacket::new)
                 .encoder(C2SMusicActionPacket::encode)
                 .consumerMainThread(C2SMusicActionPacket::handle)
+                .add();
+
+        // --- 【新增】注册新包 ---
+        INSTANCE.messageBuilder(S2CMusicCommandPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .decoder(S2CMusicCommandPacket::new)
+                .encoder(S2CMusicCommandPacket::encode)
+                .consumerMainThread(S2CMusicCommandPacket::handle)
                 .add();
 
     }
@@ -84,10 +51,6 @@ public class PacketHandler {
         INSTANCE.send(PacketDistributor.PLAYER.with(() -> player), message);
     }
 
-    /**
-     * 发送给服务器 (客户端 -> 服务端)
-     * 虽然你现在没用到，但以后做 UI 交互时会用到
-     */
     public static <MSG> void sendToServer(MSG message) {
         INSTANCE.sendToServer(message);
     }
