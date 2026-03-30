@@ -9,11 +9,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
-import net.minecraft.server.level.ServerPlayer;
 
 import java.net.http.WebSocket;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -28,6 +27,9 @@ public class WSListener implements WebSocket.Listener {
     public void onOpen(WebSocket webSocket) {
         System.out.println(">>> [Bot] 连接成功！等待消息...");
         webSocket.request(1);
+
+        BotClient.getInstance().onConnected();
+
         if (BottyMod.serverInstance != null) {
             BottyMod.serverInstance.execute(() ->
                     BottyMod.serverInstance.getPlayerList().broadcastSystemMessage(Component.literal("§a[Bot] 连接成功！"), false)
@@ -88,7 +90,6 @@ public class WSListener implements WebSocket.Listener {
         if (json.has("raw_message")) rawMsg = json.get("raw_message").getAsString();
         else if (json.has("message")) rawMsg = json.get("message").getAsString();
 
-        // 提取发送者信息
         String senderName = "未知";
         if (json.has("sender") && json.get("sender").isJsonObject()) {
             JsonObject sender = json.get("sender").getAsJsonObject();
@@ -98,17 +99,10 @@ public class WSListener implements WebSocket.Listener {
         System.out.println(">>> [Bot] 群消息 [" + fromGroup + "] " + senderName + ": " + rawMsg);
         String cleanMsg = rawMsg.trim();
 
-        // ==================== 指令区 ====================
-
-        // 1. 状态查询 (!status) - 【保留】
         if ("!status".equalsIgnoreCase(cleanMsg) || "!状态".equals(cleanMsg)) {
             handleStatusCommmand(fromGroup);
             return;
         }
-
-        // (!load 和 !bind 已移除)
-
-        // ==================== 转发区 ====================
 
         if (BotConfig.SERVER.enableChatSync.get() && BottyMod.serverInstance != null) {
             final String finalSenderName = senderName;
@@ -140,7 +134,6 @@ public class WSListener implements WebSocket.Listener {
                         if (faceId != null) {
                             String template = BotConfig.SERVER.qqFaceApi.get();
                             try {
-                                // 兼容双 %s 格式
                                 targetUrl = String.format(template, faceId, faceId);
                             } catch (Exception e) {
                                 targetUrl = String.format(template, faceId);
@@ -174,19 +167,15 @@ public class WSListener implements WebSocket.Listener {
         }
     }
 
-    // --- 指令处理方法 ---
-
     private void handleStatusCommmand(long groupId) {
         if (com.bot.aibot.BottyMod.serverInstance == null) return;
 
-        // 放入主线程执行，防止获取玩家列表时出现并发修改异常
         com.bot.aibot.BottyMod.serverInstance.execute(() -> {
             try {
                 String prefix = com.bot.aibot.config.BotConfig.SERVER.mcPrefix.get();
                 int online = com.bot.aibot.BottyMod.serverInstance.getPlayerList().getPlayerCount();
                 int max = com.bot.aibot.BottyMod.serverInstance.getMaxPlayers();
 
-                // 1. 加载配置并构建 IP 映射表 (IP -> 节点名)
                 java.util.Map<String, String> ipMap = new java.util.HashMap<>();
                 java.util.List<? extends String> configMappings = com.bot.aibot.config.BotConfig.SERVER.nodeMappings.get();
                 for (String s : configMappings) {
@@ -197,49 +186,39 @@ public class WSListener implements WebSocket.Listener {
                 }
                 String defaultNode = com.bot.aibot.config.BotConfig.SERVER.defaultNodeName.get();
 
-                // 计算 TPS 和 MSPT
                 double mspt = com.bot.aibot.BottyMod.serverInstance.getAverageTickTime();
                 String tpsStr = String.format("%.1f", Math.min(1000.0 / mspt, 20.0));
                 String msptStr = String.format("%.1f", mspt);
 
-                // 获取玩家列表及详细信息
                 java.util.List<net.minecraft.server.level.ServerPlayer> players = com.bot.aibot.BottyMod.serverInstance.getPlayerList().getPlayers();
                 java.util.List<String> playerDetails = new java.util.ArrayList<>();
                 int totalPing = 0;
 
                 for (net.minecraft.server.level.ServerPlayer player : players) {
                     String name = player.getName().getString();
-                    int ping = player.latency; // 访问 ServerPlayer 中的公开变量
+                    int ping = player.latency;
                     totalPing += ping;
 
-                    // 检测是否为 OP (权限等级 4)
                     boolean isOp = player.hasPermissions(4);
                     String opSymbol = isOp ? "🛡️ " : "";
 
-                    // 获取并识别节点名
                     String nodeName = defaultNode;
                     try {
-                        // 获取远程地址字符串，例如 "/1.2.3.4:56789"
                         String fullAddress = player.connection.connection.getRemoteAddress().toString();
                         if (fullAddress.startsWith("/")) {
                             fullAddress = fullAddress.substring(1);
                         }
-                        // 剥离端口号，只保留 IP 部分进行匹配
                         String ipOnly = fullAddress.split(":")[0];
 
-                        // 从映射表中查找匹配的节点名
                         nodeName = ipMap.getOrDefault(ipOnly, defaultNode);
                     } catch (Exception e) {
-                        // 出现异常则保持为默认值
                     }
 
                     playerDetails.add(opSymbol + name + " [" + nodeName + "] (" + ping + "ms)");
                 }
 
-                // 计算平均延迟
                 int avgPing = players.isEmpty() ? 0 : (totalPing / players.size());
 
-                // 构造玩家列表字符串 (一人一行)
                 StringBuilder playerListBuilder = new StringBuilder();
                 if (playerDetails.isEmpty()) {
                     playerListBuilder.append("无");
@@ -250,11 +229,9 @@ public class WSListener implements WebSocket.Listener {
                 }
                 String playerStr = playerListBuilder.toString();
 
-                // 构造最终发送给 QQ 的消息
                 String msg = String.format("[%s] 📊 服务器状态\n👥 在线: %d/%d\n⚡ TPS: %s (MSPT: %sms)\n📶 平均延迟: %dms\n\n🎮 在线玩家 : %s",
                         prefix, online, max, tpsStr, msptStr, avgPing, playerStr);
 
-                // 发送到 QQ
                 com.bot.aibot.network.BotClient.getInstance().sendMessageToQQ(msg);
 
             } catch (Exception e) {
@@ -305,13 +282,23 @@ public class WSListener implements WebSocket.Listener {
 
     @Override
     public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-        BotClient.getInstance().onDisconnect(webSocket, "Closed: " + reason);
-        return WebSocket.Listener.super.onClose(webSocket, statusCode, reason);
+        System.out.println(">>> [Bot] 连接断开 (Code: " + statusCode + ", Reason: " + reason + ")");
+        BotClient.getInstance().clearWebSocket();
+
+        if (BottyMod.serverInstance != null) {
+            BottyMod.serverInstance.execute(() ->
+                    BottyMod.serverInstance.getPlayerList().broadcastSystemMessage(Component.literal("§c[Bot] 连接断开！"), false)
+            );
+        }
+
+        BotClient.getInstance().scheduleReconnect();
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
     public void onError(WebSocket webSocket, Throwable error) {
-        BotClient.getInstance().onDisconnect(webSocket, "Error: " + error.getMessage());
-        WebSocket.Listener.super.onError(webSocket, error);
+        System.out.println(">>> [Bot] 连接错误: " + error.getMessage());
+        BotClient.getInstance().clearWebSocket();
+        BotClient.getInstance().scheduleReconnect();
     }
 }

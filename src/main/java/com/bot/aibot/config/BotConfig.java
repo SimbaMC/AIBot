@@ -33,6 +33,10 @@ public class BotConfig {
         public final ForgeConfigSpec.ConfigValue<List<? extends Number>> groupIds;
         public final ForgeConfigSpec.ConfigValue<Long> targetBotId;
         public final ForgeConfigSpec.ConfigValue<String> accessToken;
+        public final ForgeConfigSpec.BooleanValue reconnectEnabled;
+        public final ForgeConfigSpec.IntValue reconnectInitialInterval;
+        public final ForgeConfigSpec.DoubleValue reconnectMultiplier;
+        public final ForgeConfigSpec.IntValue reconnectMaxInterval;
 
         public final ForgeConfigSpec.BooleanValue enableChatSync;
         public final ForgeConfigSpec.BooleanValue enableJoinLeave;
@@ -57,15 +61,13 @@ public class BotConfig {
         public final ForgeConfigSpec.ConfigValue<String> chatMsgFormat;
         public final ForgeConfigSpec.ConfigValue<String> advancementMsgFormat;
         public final ForgeConfigSpec.ConfigValue<String> startMsgFormat;
-        // 1. 节点映射列表
         public final ForgeConfigSpec.ConfigValue<List<? extends String>> nodeMappings;
-        // 2. 未匹配时的默认名称
         public final ForgeConfigSpec.ConfigValue<String> defaultNodeName;
 
         public final ForgeConfigSpec.ConfigValue<String> qqFaceApi;
 
         public ServerConfig(ForgeConfigSpec.Builder builder) {
-            builder.push("Status_Command_Settings"); // 建议新开一个分类方便管理
+            builder.push("Status_Command_Settings");
 
             nodeMappings = builder
                     .comment("节点 IP 映射配置。格式为 'IP:节点名'", "例如: ['127.0.0.1:本地节点', '1.2.3.4:上海中转']")
@@ -85,6 +87,14 @@ public class BotConfig {
                     .defineList("group_ids", Arrays.asList(0L), o -> o instanceof Number);
             targetBotId = builder.comment("目标机器人Q号")
                     .define("target_bot_id", 0L);
+            reconnectEnabled = builder.comment("是否在断开连接后自动重连")
+                    .define("reconnect_enabled", true);
+            reconnectInitialInterval = builder.comment("初始重连间隔（秒）")
+                    .defineInRange("reconnect_initial_interval", 5, 1, Integer.MAX_VALUE);
+            reconnectMultiplier = builder.comment("重连间隔指数退避倍率（每次失败后乘以此值）")
+                    .defineInRange("reconnect_multiplier", 2.0, 1.0, (double) Integer.MAX_VALUE);
+            reconnectMaxInterval = builder.comment("最大重连间隔上限（秒）")
+                    .defineInRange("reconnect_max_interval", 300, 1, Integer.MAX_VALUE);
             qqFaceApi = builder.comment("QQ表情源码地址 (必须包含 %s)")
                     .define("qq_face_api", "https://github.com/koishijs/QFace/blob/master/public/gif/%s.gif");
             builder.pop();
@@ -101,7 +111,7 @@ public class BotConfig {
             mcPrefix = builder.comment("服务器前缀").define("mc_prefix", "Server");
             broadcastCooldown = builder
                     .comment("全服广播音乐冷却时间")
-                    .defineInRange("broadcast_cooldown", 600, 0, 3600);//默认600秒
+                    .defineInRange("broadcast_cooldown", 600, 0, 3600);
             builder.pop();
 
             builder.comment("AI 设置").push("ai_features");
@@ -113,7 +123,7 @@ public class BotConfig {
             aiPrompt = builder.comment("AI个性提示词")
                     .define("system_prompt", "你是一个minecraft服务器助手...");
             aiTriggerPrefix = builder.comment("AI触发词")
-                    .define("trigger_prefix", "bot ");//例子：玩家在聊天框中输入 bot 我想导管子。 ---即可触发ai聊天
+                    .define("trigger_prefix", "bot ");
             aiDeathMode = builder.comment("AI死亡播报模式----OFF为关闭,HYBRID为混合（即优先加载已有汉化的死亡播报，如无汉化则使用ai翻译）,AI_ONLY为仅使用AI翻译")
                     .defineInList("ai_death_mode", "HYBRID", Arrays.asList("OFF", "HYBRID", "AI_ONLY"));
             aiDeathPrompt = builder.comment("AI死亡播报风格提示词")
