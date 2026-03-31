@@ -1,9 +1,11 @@
 package com.bot.aibot.events;
 
+import com.bot.aibot.binding.QQBindingManager;
 import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.network.BotClient;
 import com.bot.aibot.network.PacketHandler;
 import com.bot.aibot.network.packet.S2CMusicCommandPacket;
+import com.mojang.brigadier.arguments.LongArgumentType;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraftforge.event.RegisterCommandsEvent;
@@ -70,6 +72,20 @@ public class ModCommands {
                                     );
                                     // 服务端聊天栏反馈
                                     context.getSource().sendSuccess(() -> Component.literal("§e[Bot] 已发送重置冷却指令。"), true);
+                                    return 1;
+                                })
+                        )
+                        
+        );
+
+        event.getDispatcher().register(
+                Commands.literal("qqbind")
+                        .then(Commands.argument("qq", LongArgumentType.longArg(10000L, 999999999999L))
+                                .executes(context -> {
+                                    long qq = LongArgumentType.getLong(context, "qq");
+                                    var player = context.getSource().getPlayerOrException();
+                                    QQBindingManager.getInstance().requestBind(player, qq);
+                                    context.getSource().sendSuccess(() -> Component.literal("§a[Bot] 已发起绑定请求，请到QQ群内回复 !bind " + player.getName().getString() + " 完成确认。"), false);
                                     return 1;
                                 })
                         )

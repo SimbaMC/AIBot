@@ -1,6 +1,7 @@
 package com.bot.aibot.network;
 
 import com.bot.aibot.BottyMod;
+import com.bot.aibot.binding.QQBindingManager;
 import com.bot.aibot.config.BotConfig;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -93,7 +94,12 @@ public class WSListener implements WebSocket.Listener {
         String senderName = "未知";
         if (json.has("sender") && json.get("sender").isJsonObject()) {
             JsonObject sender = json.get("sender").getAsJsonObject();
-            senderName = sender.get("nickname").getAsString();
+            String card = sender.has("card") ? sender.get("card").getAsString().trim() : "";
+            if (!card.isEmpty()) {
+                senderName = card;
+            } else if (sender.has("nickname")) {
+                senderName = sender.get("nickname").getAsString();
+            }
         }
 
         System.out.println(">>> [Bot] 群消息 [" + fromGroup + "] " + senderName + ": " + rawMsg);
@@ -101,6 +107,26 @@ public class WSListener implements WebSocket.Listener {
 
         if ("!status".equalsIgnoreCase(cleanMsg) || "!状态".equals(cleanMsg)) {
             handleStatusCommmand(fromGroup);
+            return;
+        }
+        if (cleanMsg.toLowerCase().startsWith("!bind ")) {
+            long senderQq = json.has("user_id") ? json.get("user_id").getAsLong() : 0L;
+            if (senderQq != 0L) {
+                String playerName = cleanMsg.substring("!bind ".length()).trim();
+                QQBindingManager.getInstance().confirmBind(playerName, senderQq, senderName).ifPresentOrElse(record -> {
+                    BotClient.getInstance().sendMessageToQQ(String.format(
+                            "[绑定成功] %s 已绑定为 %s", record.playerName, record.groupNickname));
+                    if (BottyMod.serverInstance != null) {
+                        BottyMod.serverInstance.execute(() -> {
+                            var target = BottyMod.serverInstance.getPlayerList().getPlayer(java.util.UUID.fromString(record.uuid));
+                            if (target != null) {
+                                QQBindingManager.getInstance().applyTabPrefix(target);
+                                target.sendSystemMessage(Component.literal("§a[Bot] QQ绑定成功，已应用群昵称头衔。"));
+                            }
+                        });
+                    }
+                }, () -> BotClient.getInstance().sendMessageToQQ("[绑定失败] 未找到匹配的待确认记录，请先在游戏内执行 /qqbind QQ号"));
+            }
             return;
         }
 
