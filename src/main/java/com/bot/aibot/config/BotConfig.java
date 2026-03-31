@@ -96,7 +96,7 @@ public class BotConfig {
             reconnectMaxInterval = builder.comment("最大重连间隔上限（秒）")
                     .defineInRange("reconnect_max_interval", 300, 1, Integer.MAX_VALUE);
             qqFaceApi = builder.comment("QQ表情源码地址 (必须包含 %s)")
-                    .define("qq_face_api", "https://github.com/koishijs/QFace/blob/master/public/gif/%s.gif");
+                    .define("qq_face_api", "https://koishi.js.org/QFace/assets/qq_emoji/%s/png/%s.png");
             builder.pop();
 
             builder.comment("Features").push("features");
