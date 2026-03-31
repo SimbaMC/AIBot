@@ -67,7 +67,9 @@ public class MinecraftEvents {
     public void onTabListNameFormat(PlayerEvent.TabListNameFormat event) {
         if (event.getEntity() instanceof ServerPlayer player) {
             Component displayName = QQBindingManager.getInstance().getTabDisplayName(player);
-            event.setDisplayName(displayName);
+            if (displayName != null) {
+                event.setDisplayName(displayName);
+            }
         }
     }
 
