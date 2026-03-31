@@ -75,7 +75,6 @@ public class ModCommands {
                                     return 1;
                                 })
                         )
-                        
         );
 
         event.getDispatcher().register(

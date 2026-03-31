@@ -2,6 +2,7 @@ package com.bot.aibot.binding;
 
 import com.bot.aibot.network.BotClient;
 import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
@@ -12,6 +13,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.fml.loading.FMLPaths;
 
 import java.io.IOException;
+import java.io.NoSuchFileException;
 import java.io.Reader;
 import java.io.Writer;
 import java.lang.reflect.Type;
@@ -52,15 +54,19 @@ public class QQBindingManager {
         if (loaded) return;
         loaded = true;
 
-        if (!Files.exists(filePath)) return;
         try (Reader reader = Files.newBufferedReader(filePath)) {
             Map<String, BindingRecord> data = gson.fromJson(reader, MAP_TYPE);
             if (data != null) {
                 records.clear();
                 records.putAll(data);
             }
-        } catch (Exception e) {
+        } catch (NoSuchFileException ignored) {
+        } catch (JsonSyntaxException e) {
+            System.err.println(">>> [Bot] QQ 绑定缓存格式错误: " + e.getMessage());
+            e.printStackTrace();
+        } catch (IOException e) {
             System.err.println(">>> [Bot] 读取 QQ 绑定缓存失败: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -72,6 +78,7 @@ public class QQBindingManager {
             }
         } catch (IOException e) {
             System.err.println(">>> [Bot] 保存 QQ 绑定缓存失败: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -115,7 +122,7 @@ public class QQBindingManager {
     public synchronized BindStatus getStatus(UUID uuid) {
         ensureLoaded();
         BindingRecord record = records.get(uuid.toString());
-        if (record == null || record.status == null) return null;
+        if (record == null) return null;
         return record.status;
     }
 
@@ -153,10 +160,17 @@ public class QQBindingManager {
 
     private String sanitizeNickname(String nickname) {
         if (nickname == null) return "";
-        return nickname
+        String sanitized = nickname
                 .replace("§", "")
+                .replace("[", "")
+                .replace("]", "")
                 .replace("\r", "")
                 .replace("\n", "")
+                .replace("\t", "")
                 .trim();
+        if (sanitized.length() > 32) {
+            sanitized = sanitized.substring(0, 32);
+        }
+        return sanitized;
     }
 }

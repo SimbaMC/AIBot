@@ -106,7 +106,7 @@ public class WSListener implements WebSocket.Listener {
         String cleanMsg = rawMsg.trim();
 
         if ("!status".equalsIgnoreCase(cleanMsg) || "!状态".equals(cleanMsg)) {
-            handleStatusCommmand(fromGroup);
+            handleStatusCommand(fromGroup);
             return;
         }
         if (cleanMsg.toLowerCase().startsWith("!bind ")) {
@@ -118,10 +118,14 @@ public class WSListener implements WebSocket.Listener {
                             "[绑定成功] %s 已绑定为 %s", record.playerName, record.groupNickname));
                     if (BottyMod.serverInstance != null) {
                         BottyMod.serverInstance.execute(() -> {
-                            var target = BottyMod.serverInstance.getPlayerList().getPlayer(java.util.UUID.fromString(record.uuid));
-                            if (target != null) {
-                                QQBindingManager.getInstance().applyTabPrefix(target);
-                                target.sendSystemMessage(Component.literal("§a[Bot] QQ绑定成功，已应用群昵称头衔。"));
+                            try {
+                                var target = BottyMod.serverInstance.getPlayerList().getPlayer(java.util.UUID.fromString(record.uuid));
+                                if (target != null) {
+                                    QQBindingManager.getInstance().applyTabPrefix(target);
+                                    target.sendSystemMessage(Component.literal("§a[Bot] QQ绑定成功，已应用群昵称头衔。"));
+                                }
+                            } catch (IllegalArgumentException e) {
+                                System.err.println(">>> [Bot] 绑定记录 UUID 异常: " + record.uuid);
                             }
                         });
                     }
@@ -193,7 +197,7 @@ public class WSListener implements WebSocket.Listener {
         }
     }
 
-    private void handleStatusCommmand(long groupId) {
+    private void handleStatusCommand(long groupId) {
         if (com.bot.aibot.BottyMod.serverInstance == null) return;
 
         com.bot.aibot.BottyMod.serverInstance.execute(() -> {
