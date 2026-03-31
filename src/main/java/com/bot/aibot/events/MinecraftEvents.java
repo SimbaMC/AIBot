@@ -1,6 +1,8 @@
 package com.bot.aibot.events;
 
 import com.bot.aibot.ai.LLMClient;
+import com.bot.aibot.binding.QQBindingManager;
+import com.bot.aibot.binding.QQBindingManager.BindStatus;
 import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.network.BotClient;
 import com.bot.aibot.utils.ChineseUtils;
@@ -26,7 +28,7 @@ public class MinecraftEvents {
 
     @SubscribeEvent
     public void onChat(ServerChatEvent event) {
-        String name = event.getPlayer().getName().getString();
+        String name = QQBindingManager.getInstance().getChatDisplayName(event.getPlayer());
         String msg = event.getMessage().getString();
 
         if (BotConfig.SERVER.enableAI.get()) {
@@ -47,6 +49,14 @@ public class MinecraftEvents {
 
     @SubscribeEvent
     public void onPlayerJoin(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            QQBindingManager manager = QQBindingManager.getInstance();
+            manager.applyTabPrefix(player);
+            BindStatus status = manager.getStatus(player.getUUID());
+            if (status == null || status == BindStatus.PENDING) {
+                manager.sendBindReminder(player);
+            }
+        }
         if (BotConfig.SERVER.enableJoinLeave.get()) {
             BotClient.getInstance().sendMessageToQQ(formatMsg(BotConfig.SERVER.joinMsgFormat.get(), event.getEntity().getName().getString(), ""));
         }
