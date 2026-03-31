@@ -137,13 +137,16 @@ public class QQBindingManager {
     }
 
     public synchronized void applyTabPrefix(ServerPlayer player) {
+        player.refreshTabListName();
+    }
+
+    public synchronized Component getTabDisplayName(ServerPlayer player) {
         ensureLoaded();
         BindingRecord record = records.get(player.getUUID().toString());
         if (record == null || record.status != BindStatus.CONFIRMED || record.groupNickname == null || record.groupNickname.isEmpty()) {
-            player.setTabListDisplayName(null);
-            return;
+            return null;
         }
-        player.setTabListDisplayName(Component.literal("§b[" + record.groupNickname + "] §f" + player.getName().getString()));
+        return Component.literal("§b[" + record.groupNickname + "] §f" + player.getName().getString());
     }
 
     public void sendBindReminder(ServerPlayer player) {
