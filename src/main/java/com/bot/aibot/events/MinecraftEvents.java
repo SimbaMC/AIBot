@@ -6,6 +6,7 @@ import com.bot.aibot.binding.QQBindingManager.BindStatus;
 import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.network.BotClient;
 import com.bot.aibot.utils.ChineseUtils;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.ServerChatEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
@@ -59,6 +60,14 @@ public class MinecraftEvents {
         }
         if (BotConfig.SERVER.enableJoinLeave.get()) {
             BotClient.getInstance().sendMessageToQQ(formatMsg(BotConfig.SERVER.joinMsgFormat.get(), event.getEntity().getName().getString(), ""));
+        }
+    }
+
+    @SubscribeEvent
+    public void onTabListNameFormat(PlayerEvent.TabListNameFormat event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            Component displayName = QQBindingManager.getInstance().getTabDisplayName(player);
+            event.setDisplayName(displayName);
         }
     }
 
