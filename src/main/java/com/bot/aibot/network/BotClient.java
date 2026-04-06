@@ -146,6 +146,10 @@ public class BotClient {
         }
     }
 
+    /**
+     * Handles disconnect callbacks and returns whether the callback belongs to the current active socket.
+     * true = active socket disconnected; false = stale/old callback ignored.
+     */
     public boolean onDisconnect(WebSocket ws, String reason) {
         if (this.webSocket != ws) {
             System.out.println(">>> [Bot] 忽略旧连接回调: callbackWs=" + wsId(ws) + ", activeWs=" + wsId(this.webSocket) + ", reason=" + reason);
@@ -185,6 +189,9 @@ public class BotClient {
         return intentionalClose;
     }
 
+    /**
+     * Returns a stable hex identity string for diagnostic logs to distinguish socket instances.
+     */
     private String wsId(WebSocket ws) {
         return ws == null ? "null" : Integer.toHexString(System.identityHashCode(ws));
     }
