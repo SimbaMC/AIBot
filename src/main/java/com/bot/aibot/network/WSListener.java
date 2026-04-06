@@ -312,23 +312,30 @@ public class WSListener implements WebSocket.Listener {
 
     @Override
     public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-        System.out.println(">>> [Bot] 连接断开 (Code: " + statusCode + ", Reason: " + reason + ")");
-        BotClient.getInstance().clearWebSocket();
-
-        if (BottyMod.serverInstance != null) {
+        BotClient client = BotClient.getInstance();
+        System.out.println(">>> [Bot] onClose 回调 (Code: " + statusCode + ", Reason: " + reason + ")");
+        boolean activeDisconnected = client.onDisconnect(webSocket, "Code=" + statusCode + ", Reason=" + reason);
+        if (!activeDisconnected) {
+            return CompletableFuture.completedFuture(null);
+        }
+        if (BottyMod.serverInstance != null && !client.isIntentionalClose()) {
             BottyMod.serverInstance.execute(() ->
                     BottyMod.serverInstance.getPlayerList().broadcastSystemMessage(Component.literal("§c[Bot] 连接断开！"), false)
             );
         }
-
-        BotClient.getInstance().scheduleReconnect();
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
     public void onError(WebSocket webSocket, Throwable error) {
-        System.out.println(">>> [Bot] 连接错误: " + error.getMessage());
-        BotClient.getInstance().clearWebSocket();
-        BotClient.getInstance().scheduleReconnect();
+        BotClient client = BotClient.getInstance();
+        String err = error == null ? "unknown" : error.getMessage();
+        System.out.println(">>> [Bot] onError 回调: " + err);
+        boolean activeDisconnected = client.onDisconnect(webSocket, "onError: " + err);
+        if (activeDisconnected && BottyMod.serverInstance != null && !client.isIntentionalClose()) {
+            BottyMod.serverInstance.execute(() ->
+                    BottyMod.serverInstance.getPlayerList().broadcastSystemMessage(Component.literal("§c[Bot] 连接异常，已触发重连。"), false)
+            );
+        }
     }
 }

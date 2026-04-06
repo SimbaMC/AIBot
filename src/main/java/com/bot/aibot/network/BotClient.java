@@ -51,6 +51,7 @@ public class BotClient {
         if (reconnectScheduler.isShutdown()) {
             reconnectScheduler = createReconnectScheduler();
         }
+        System.out.println(">>> [Bot] connect() invoked, intentionalClose=false, 重置重连状态");
         intentionalClose = false;
         reconnectPending.set(false);
         currentReconnectDelay = BotConfig.SERVER.reconnectInitialInterval.get();
@@ -59,9 +60,11 @@ public class BotClient {
 
     private void doConnect() {
         if (webSocket != null && !webSocket.isOutputClosed()) {
+            System.out.println(">>> [Bot] 跳过连接：当前已有活动连接 ws=" + wsId(webSocket));
             return;
         }
         if (!isConnecting.compareAndSet(false, true)) {
+            System.out.println(">>> [Bot] 跳过连接：已有连接任务在进行中");
             return;
         }
 
@@ -70,6 +73,7 @@ public class BotClient {
             try {
                 String url = BotConfig.SERVER.wsUrl.get();
                 String token = BotConfig.SERVER.accessToken.get();
+                System.out.println(">>> [Bot] 连接参数: url=" + url + ", authTokenConfigured=" + (token != null && !token.isEmpty()));
 
                 HttpClient client = HttpUtils.getClient();
                 WebSocket.Builder builder = client.newWebSocketBuilder()
@@ -81,7 +85,7 @@ public class BotClient {
 
                 CompletableFuture<WebSocket> wsFuture = builder.buildAsync(URI.create(url), new WSListener());
                 webSocket = wsFuture.get(15, TimeUnit.SECONDS);
-                System.out.println(">>> [Bot] 连接成功！");
+                System.out.println(">>> [Bot] 连接成功！ws=" + wsId(webSocket));
 
             } catch (Exception e) {
                 System.err.println(">>> [Bot] 连接失败: " + e.getMessage());
@@ -96,17 +100,31 @@ public class BotClient {
     public void onConnected() {
         reconnectPending.set(false);
         currentReconnectDelay = BotConfig.SERVER.reconnectInitialInterval.get();
+        System.out.println(">>> [Bot] onConnected: 已重置重连退避参数");
     }
 
     public void clearWebSocket() {
+        System.out.println(">>> [Bot] clearWebSocket: 主动清理引用, oldWs=" + wsId(webSocket));
         webSocket = null;
     }
 
     public void scheduleReconnect() {
-        if (intentionalClose) return;
-        if (!BotConfig.SERVER.reconnectEnabled.get()) return;
-        if (isConnecting.get() || (webSocket != null && !webSocket.isOutputClosed())) return;
-        if (!reconnectPending.compareAndSet(false, true)) return;
+        if (intentionalClose) {
+            System.out.println(">>> [Bot] 跳过重连：当前为主动关闭状态");
+            return;
+        }
+        if (!BotConfig.SERVER.reconnectEnabled.get()) {
+            System.out.println(">>> [Bot] 跳过重连：配置已关闭自动重连");
+            return;
+        }
+        if (isConnecting.get() || (webSocket != null && !webSocket.isOutputClosed())) {
+            System.out.println(">>> [Bot] 跳过重连：连接任务进行中或已有活动连接");
+            return;
+        }
+        if (!reconnectPending.compareAndSet(false, true)) {
+            System.out.println(">>> [Bot] 跳过重连：已有待执行重连任务");
+            return;
+        }
 
         long delay = currentReconnectDelay;
         System.out.println(">>> [Bot] 将在 " + delay + " 秒后尝试重新连接...");
@@ -128,21 +146,27 @@ public class BotClient {
         }
     }
 
-    public void onDisconnect(WebSocket ws, String reason) {
-        System.out.println(">>> [Bot] 连接断开: " + reason);
-        if (this.webSocket == ws) {
-            this.webSocket = null;
-            scheduleReconnect();
+    public boolean onDisconnect(WebSocket ws, String reason) {
+        if (this.webSocket != ws) {
+            System.out.println(">>> [Bot] 忽略旧连接回调: callbackWs=" + wsId(ws) + ", activeWs=" + wsId(this.webSocket) + ", reason=" + reason);
+            return false;
         }
+        System.out.println(">>> [Bot] 活动连接断开: ws=" + wsId(ws) + ", reason=" + reason);
+        this.webSocket = null;
+        scheduleReconnect();
+        return true;
     }
 
     public void reload() {
+        System.out.println(">>> [Bot] reload() invoked: 开始热重载");
         close("Reloading");
         ChineseUtils.load();
+        System.out.println(">>> [Bot] reload() scheduled: 1秒后重新连接");
         scheduler.schedule(this::connect, 1, TimeUnit.SECONDS);
     }
 
     public void close(String reason) {
+        System.out.println(">>> [Bot] close() invoked: reason=" + reason + ", ws=" + wsId(webSocket));
         intentionalClose = true;
         reconnectScheduler.shutdownNow();
         pendingReconnectTask = null;
@@ -155,6 +179,14 @@ public class BotClient {
             webSocket = null;
         }
         isConnecting.set(false);
+    }
+
+    public boolean isIntentionalClose() {
+        return intentionalClose;
+    }
+
+    private String wsId(WebSocket ws) {
+        return ws == null ? "null" : Integer.toHexString(System.identityHashCode(ws));
     }
 
     public void sendMessageToQQ(String message) {
