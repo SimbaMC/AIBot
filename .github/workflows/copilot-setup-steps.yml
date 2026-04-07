@@ -1,0 +1,65 @@
+name: Copilot Setup Steps
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+      - build.gradle
+      - settings.gradle
+      - gradle.properties
+      - gradle/wrapper/gradle-wrapper.properties
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+      - build.gradle
+      - settings.gradle
+      - gradle.properties
+      - gradle/wrapper/gradle-wrapper.properties
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Restore Gradle dependency/plugin caches
+        id: gradle-cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-copilot-${{ hashFiles('build.gradle', 'settings.gradle', 'gradle.properties', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-copilot-
+
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x ./gradlew
+
+      - name: Warm Gradle cache for plugin/dependency resolution (best effort)
+        continue-on-error: true
+        run: ./gradlew help
+
+      - name: Validate offline build prerequisites from cache (best effort)
+        continue-on-error: true
+        run: ./gradlew --offline help
+
+      - name: Save Gradle dependency/plugin caches
+        if: always() && steps.gradle-cache-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-copilot-${{ hashFiles('build.gradle', 'settings.gradle', 'gradle.properties', 'gradle/wrapper/gradle-wrapper.properties') }}
