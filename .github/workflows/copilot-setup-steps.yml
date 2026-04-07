@@ -34,8 +34,8 @@ jobs:
           java-version: '17'
 
       - name: Restore Gradle dependency/plugin caches
-        id: gradle-cache
-        uses: actions/cache@v4
+        id: gradle-cache-restore
+        uses: actions/cache/restore@v4
         with:
           path: |
             ~/.gradle/caches
@@ -49,8 +49,17 @@ jobs:
 
       - name: Warm Gradle cache for plugin/dependency resolution (best effort)
         continue-on-error: true
-        run: ./gradlew --no-daemon help
+        run: ./gradlew help
 
       - name: Validate offline build prerequisites from cache (best effort)
         continue-on-error: true
-        run: ./gradlew --no-daemon --offline help
+        run: ./gradlew --offline help
+
+      - name: Save Gradle dependency/plugin caches
+        if: always() && steps.gradle-cache-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-copilot-${{ hashFiles('build.gradle', 'settings.gradle', 'gradle.properties', 'gradle/wrapper/gradle-wrapper.properties') }}
