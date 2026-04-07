@@ -42,6 +42,7 @@ public class WSListener implements WebSocket.Listener {
     @Override
     public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
         webSocket.request(1);
+        BotClient.getInstance().markInboundActivity(webSocket);
 
         if (buffer.length() + data.length() > MAX_BUFFER_SIZE) {
             buffer.setLength(0);
@@ -73,6 +74,13 @@ public class WSListener implements WebSocket.Listener {
             buffer.setLength(0);
         }
         return null;
+    }
+
+    @Override
+    public CompletionStage<?> onPong(WebSocket webSocket, java.nio.ByteBuffer message) {
+        webSocket.request(1);
+        BotClient.getInstance().onPong(webSocket);
+        return CompletableFuture.completedFuture(null);
     }
 
     private void processGroupMessage(JsonObject json) {
@@ -303,7 +311,12 @@ public class WSListener implements WebSocket.Listener {
                 JsonObject root = new JsonObject();
                 root.addProperty("action", "send_group_msg");
                 root.add("params", params);
-                webSocket.sendText(root.toString(), true);
+                long gid = groupId.longValue();
+                webSocket.sendText(root.toString(), true).whenComplete((ignored, error) -> {
+                    if (error != null) {
+                        System.err.println(">>> [Bot] 发送启动消息失败 [gid=" + gid + "]: " + error.getMessage());
+                    }
+                });
             }
         } catch (Exception e) {
             System.out.println(">>> [Bot] 发送启动消息失败: " + e.getMessage());

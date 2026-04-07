@@ -9,6 +9,8 @@ import com.google.gson.JsonObject;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -23,8 +25,18 @@ public class BotClient {
     private static final BotClient INSTANCE = new BotClient();
     public static BotClient getInstance() { return INSTANCE; }
 
+    private static final long HEALTH_CHECK_INTERVAL_SECONDS = 15L;
+    private static final long HEARTBEAT_INTERVAL_MS = 30_000L;
+    private static final long PONG_TIMEOUT_MS = 20_000L;
+    private static final long SILENT_TIMEOUT_MS = 180_000L;
+
     private volatile WebSocket webSocket;
     private final AtomicBoolean isConnecting = new AtomicBoolean(false);
+    private final AtomicBoolean pongPending = new AtomicBoolean(false);
+    private volatile long lastInboundAtMs = 0L;
+    private volatile long lastOutboundAtMs = 0L;
+    private volatile long lastPongAtMs = 0L;
+    private volatile long lastPingSentAtMs = 0L;
 
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "Bot-Connection-Manager");
@@ -46,6 +58,10 @@ public class BotClient {
     private volatile long currentReconnectDelay = 5L;
     private volatile boolean intentionalClose = false;
     private volatile ScheduledFuture<?> pendingReconnectTask = null;
+
+    private BotClient() {
+        startConnectionWatchdog();
+    }
 
     public void connect() {
         if (reconnectScheduler.isShutdown()) {
@@ -98,6 +114,12 @@ public class BotClient {
     }
 
     public void onConnected() {
+        long now = System.currentTimeMillis();
+        lastInboundAtMs = now;
+        lastOutboundAtMs = now;
+        lastPongAtMs = now;
+        lastPingSentAtMs = 0L;
+        pongPending.set(false);
         reconnectPending.set(false);
         currentReconnectDelay = BotConfig.SERVER.reconnectInitialInterval.get();
         System.out.println(">>> [Bot] onConnected: 已重置重连退避参数");
@@ -175,6 +197,8 @@ public class BotClient {
         reconnectScheduler.shutdownNow();
         pendingReconnectTask = null;
         reconnectPending.set(false);
+        pongPending.set(false);
+        lastPingSentAtMs = 0L;
         if (webSocket != null) {
             try {
                 webSocket.sendClose(WebSocket.NORMAL_CLOSURE, reason);
@@ -187,6 +211,100 @@ public class BotClient {
 
     public boolean isIntentionalClose() {
         return intentionalClose;
+    }
+
+    public void markInboundActivity(WebSocket ws) {
+        if (this.webSocket == ws) {
+            lastInboundAtMs = System.currentTimeMillis();
+        }
+    }
+
+    public void onPong(WebSocket ws) {
+        if (this.webSocket != ws) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        lastPongAtMs = now;
+        lastInboundAtMs = now;
+        pongPending.set(false);
+    }
+
+    private void startConnectionWatchdog() {
+        scheduler.scheduleAtFixedRate(this::monitorConnectionHealth,
+                HEALTH_CHECK_INTERVAL_SECONDS,
+                HEALTH_CHECK_INTERVAL_SECONDS,
+                TimeUnit.SECONDS);
+    }
+
+    private void monitorConnectionHealth() {
+        try {
+            WebSocket ws = this.webSocket;
+            if (intentionalClose || !isWebSocketActive(ws)) {
+                return;
+            }
+            long now = System.currentTimeMillis();
+            if (pongPending.get() && lastPingSentAtMs > 0 && now - lastPingSentAtMs > PONG_TIMEOUT_MS) {
+                handleConnectionStale(ws, "心跳 PONG 超时");
+                return;
+            }
+            if (lastInboundAtMs > 0 && now - lastInboundAtMs > SILENT_TIMEOUT_MS) {
+                handleConnectionStale(ws, "连接静默超时");
+                return;
+            }
+            if (!pongPending.get() && (lastPingSentAtMs == 0L || now - lastPingSentAtMs >= HEARTBEAT_INTERVAL_MS)) {
+                sendHeartbeat(ws, now);
+            }
+        } catch (Throwable t) {
+            System.err.println(">>> [Bot] 健康检查异常: " + t.getMessage());
+        }
+    }
+
+    private void sendHeartbeat(WebSocket ws, long now) {
+        if (this.webSocket != ws || !isWebSocketActive(ws)) {
+            return;
+        }
+        lastPingSentAtMs = now;
+        pongPending.set(true);
+        ws.sendPing(ByteBuffer.wrap("aibot-hb".getBytes(StandardCharsets.UTF_8)))
+                .whenComplete((ignored, error) -> {
+                    if (error != null) {
+                        System.err.println(">>> [Bot] 心跳发送失败: " + error.getMessage());
+                        handleConnectionStale(ws, "心跳发送失败");
+                    }
+                });
+    }
+
+    private void handleConnectionStale(WebSocket ws, String reason) {
+        if (!onDisconnect(ws, "watchdog: " + reason)) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        System.err.println(">>> [Bot] 触发连接自愈重连: ws=" + wsId(ws)
+                + ", reason=" + reason
+                + ", inboundIdleMs=" + elapsed(now, lastInboundAtMs)
+                + ", outboundIdleMs=" + elapsed(now, lastOutboundAtMs)
+                + ", pongIdleMs=" + elapsed(now, lastPongAtMs));
+        try {
+            ws.abort();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private long elapsed(long now, long ts) {
+        return ts <= 0 ? -1L : (now - ts);
+    }
+
+    private boolean isWebSocketActive(WebSocket ws) {
+        return ws != null && !ws.isOutputClosed() && !ws.isInputClosed();
+    }
+
+    private void sendTextWithFailureLog(WebSocket ws, String payload, String context) {
+        lastOutboundAtMs = System.currentTimeMillis();
+        ws.sendText(payload, true).whenComplete((ignored, error) -> {
+            if (error != null) {
+                System.err.println(">>> [Bot] 发送失败 [" + context + "]: " + error.getMessage());
+            }
+        });
     }
 
     /**
@@ -211,14 +329,14 @@ public class BotClient {
                 root.addProperty("action", "send_group_msg");
                 root.add("params", params);
 
-                webSocket.sendText(new Gson().toJson(root), true);
+                sendTextWithFailureLog(webSocket, new Gson().toJson(root), "send_group_msg gid=" + gid);
             }
         }
     }
 
     public void sendRawJson(String json) {
         if (webSocket != null && !webSocket.isOutputClosed()) {
-            webSocket.sendText(json, true);
+            sendTextWithFailureLog(webSocket, json, "send_raw_json");
         }
     }
 }
