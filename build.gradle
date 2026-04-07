@@ -22,7 +22,6 @@ minecraft {
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
-    minecraft.mavenizer(it)
     maven fg.forgeMaven
     maven fg.minecraftLibsMaven
     mavenCentral()
@@ -42,7 +41,6 @@ dependencies {
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
     shade 'javazoom:jlayer:1.0.1'
-    minecraftLibrary 'javazoom:jlayer:1.0.1'
 
 }
 reobf {
