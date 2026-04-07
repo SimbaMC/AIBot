@@ -25,9 +25,13 @@ public class BotClient {
     private static final BotClient INSTANCE = new BotClient();
     public static BotClient getInstance() { return INSTANCE; }
 
+    // Periodic watchdog tick for connection health checks.
     private static final long HEALTH_CHECK_INTERVAL_SECONDS = 15L;
+    // Send one ping every 30s while connected.
     private static final long HEARTBEAT_INTERVAL_MS = 30_000L;
+    // If a sent ping has no pong for 20s, treat the connection as stale.
     private static final long PONG_TIMEOUT_MS = 20_000L;
+    // If no inbound traffic is observed for 3 minutes, force reconnect.
     private static final long SILENT_TIMEOUT_MS = 180_000L;
 
     private volatile WebSocket webSocket;
@@ -198,6 +202,9 @@ public class BotClient {
         pendingReconnectTask = null;
         reconnectPending.set(false);
         pongPending.set(false);
+        lastInboundAtMs = 0L;
+        lastOutboundAtMs = 0L;
+        lastPongAtMs = 0L;
         lastPingSentAtMs = 0L;
         if (webSocket != null) {
             try {
@@ -243,7 +250,7 @@ public class BotClient {
                 return;
             }
             long now = System.currentTimeMillis();
-            if (pongPending.get() && lastPingSentAtMs > 0 && now - lastPingSentAtMs > PONG_TIMEOUT_MS) {
+            if (isPongTimedOut(now)) {
                 handleConnectionStale(ws, "心跳 PONG 超时");
                 return;
             }
@@ -268,10 +275,15 @@ public class BotClient {
         ws.sendPing(ByteBuffer.wrap("aibot-hb".getBytes(StandardCharsets.UTF_8)))
                 .whenComplete((ignored, error) -> {
                     if (error != null) {
+                        pongPending.set(false);
                         System.err.println(">>> [Bot] 心跳发送失败: " + error.getMessage());
                         handleConnectionStale(ws, "心跳发送失败");
                     }
                 });
+    }
+
+    private boolean isPongTimedOut(long now) {
+        return pongPending.get() && lastPingSentAtMs > 0 && now - lastPingSentAtMs > PONG_TIMEOUT_MS;
     }
 
     private void handleConnectionStale(WebSocket ws, String reason) {

@@ -12,6 +12,7 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 
 import java.net.http.WebSocket;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -77,7 +78,7 @@ public class WSListener implements WebSocket.Listener {
     }
 
     @Override
-    public CompletionStage<?> onPong(WebSocket webSocket, java.nio.ByteBuffer message) {
+    public CompletionStage<?> onPong(WebSocket webSocket, ByteBuffer message) {
         webSocket.request(1);
         BotClient.getInstance().onPong(webSocket);
         return CompletableFuture.completedFuture(null);
