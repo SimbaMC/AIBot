@@ -25,6 +25,9 @@ jobs:
           java-version: '17'
           cache: gradle
 
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x ./gradlew
+
       - name: Build mod JAR
         run: ./gradlew --no-daemon build
 
