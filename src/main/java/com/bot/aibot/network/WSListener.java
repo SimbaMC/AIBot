@@ -12,6 +12,7 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 
 import java.net.http.WebSocket;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -42,6 +43,7 @@ public class WSListener implements WebSocket.Listener {
     @Override
     public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
         webSocket.request(1);
+        BotClient.getInstance().markInboundActivity(webSocket);
 
         if (buffer.length() + data.length() > MAX_BUFFER_SIZE) {
             buffer.setLength(0);
@@ -73,6 +75,13 @@ public class WSListener implements WebSocket.Listener {
             buffer.setLength(0);
         }
         return null;
+    }
+
+    @Override
+    public CompletionStage<?> onPong(WebSocket webSocket, ByteBuffer message) {
+        webSocket.request(1);
+        BotClient.getInstance().onPong(webSocket);
+        return CompletableFuture.completedFuture(null);
     }
 
     private void processGroupMessage(JsonObject json) {
@@ -303,7 +312,12 @@ public class WSListener implements WebSocket.Listener {
                 JsonObject root = new JsonObject();
                 root.addProperty("action", "send_group_msg");
                 root.add("params", params);
-                webSocket.sendText(root.toString(), true);
+                long gid = groupId.longValue();
+                webSocket.sendText(root.toString(), true).whenComplete((ignored, error) -> {
+                    if (error != null) {
+                        System.err.println(">>> [Bot] 发送启动消息失败 [gid=" + gid + "]: " + error.getMessage());
+                    }
+                });
             }
         } catch (Exception e) {
             System.out.println(">>> [Bot] 发送启动消息失败: " + e.getMessage());
@@ -312,23 +326,30 @@ public class WSListener implements WebSocket.Listener {
 
     @Override
     public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-        System.out.println(">>> [Bot] 连接断开 (Code: " + statusCode + ", Reason: " + reason + ")");
-        BotClient.getInstance().clearWebSocket();
-
-        if (BottyMod.serverInstance != null) {
+        BotClient client = BotClient.getInstance();
+        System.out.println(">>> [Bot] onClose 回调 (Code: " + statusCode + ", Reason: " + reason + ")");
+        boolean activeDisconnected = client.onDisconnect(webSocket, "Code=" + statusCode + ", Reason=" + reason);
+        if (!activeDisconnected) {
+            return CompletableFuture.completedFuture(null);
+        }
+        if (BottyMod.serverInstance != null && !client.isIntentionalClose()) {
             BottyMod.serverInstance.execute(() ->
                     BottyMod.serverInstance.getPlayerList().broadcastSystemMessage(Component.literal("§c[Bot] 连接断开！"), false)
             );
         }
-
-        BotClient.getInstance().scheduleReconnect();
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
     public void onError(WebSocket webSocket, Throwable error) {
-        System.out.println(">>> [Bot] 连接错误: " + error.getMessage());
-        BotClient.getInstance().clearWebSocket();
-        BotClient.getInstance().scheduleReconnect();
+        BotClient client = BotClient.getInstance();
+        String err = error == null ? "unknown" : error.getMessage();
+        System.out.println(">>> [Bot] onError 回调: " + err);
+        boolean activeDisconnected = client.onDisconnect(webSocket, "onError: " + err);
+        if (activeDisconnected && BottyMod.serverInstance != null && !client.isIntentionalClose()) {
+            BottyMod.serverInstance.execute(() ->
+                    BottyMod.serverInstance.getPlayerList().broadcastSystemMessage(Component.literal("§c[Bot] 连接异常，已触发重连。"), false)
+            );
+        }
     }
 }
