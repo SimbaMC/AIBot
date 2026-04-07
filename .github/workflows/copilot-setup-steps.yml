@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -47,13 +47,13 @@ jobs:
       - name: Ensure Gradle wrapper is executable
         run: chmod +x ./gradlew
 
-      - name: Warm Gradle cache for plugin/dependency resolution (best effort)
+      - name: Warm Gradle cache – run full build to cache all ForgeGradle artifacts (best effort)
         continue-on-error: true
-        run: ./gradlew help
+        run: ./gradlew build --no-daemon
 
       - name: Validate offline build prerequisites from cache (best effort)
         continue-on-error: true
-        run: ./gradlew --offline help
+        run: ./gradlew --offline dependencies --no-daemon
 
       - name: Save Gradle dependency/plugin caches
         if: always() && steps.gradle-cache-restore.outputs.cache-hit != 'true'
