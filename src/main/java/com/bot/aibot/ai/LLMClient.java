@@ -5,7 +5,7 @@ import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.events.MinecraftEvents;
 import com.bot.aibot.network.BotClient;
 import com.bot.aibot.network.PacketHandler;
-import com.bot.aibot.network.packet.S2CMusicCommandPacket;
+import com.bot.aibot.network.payload.S2CMusicCommandPayload;
 import com.bot.aibot.utils.ChineseUtils;
 import com.bot.aibot.utils.HttpUtils;
 import com.google.gson.JsonArray;
@@ -95,22 +95,22 @@ public class LLMClient {
             String raw = commandLine.replace("ACTION:", "").trim();
 
             if (raw.startsWith("STOP")) {
-                PacketHandler.sendToPlayer(new S2CMusicCommandPacket(S2CMusicCommandPacket.Action.STOP), player);
+                PacketHandler.sendToPlayer(new S2CMusicCommandPayload(S2CMusicCommandPayload.Action.STOP), player);
             }
             else if (raw.startsWith("PLAY_MY_LIKE")) {
-                PacketHandler.sendToPlayer(new S2CMusicCommandPacket(S2CMusicCommandPacket.Action.PLAY_MY_LIKE), player);
+                PacketHandler.sendToPlayer(new S2CMusicCommandPayload(S2CMusicCommandPayload.Action.PLAY_MY_LIKE), player);
             }
             else if (raw.startsWith("SEARCH:")) {
                 String keyword = raw.replace("SEARCH:", "").trim();
                 // extra=0 代表私享
-                PacketHandler.sendToPlayer(new S2CMusicCommandPacket(
-                        S2CMusicCommandPacket.Action.SEARCH_AND_PLAY, keyword, 0), player);
+                PacketHandler.sendToPlayer(new S2CMusicCommandPayload(
+                        S2CMusicCommandPayload.Action.SEARCH_AND_PLAY, keyword, 0), player);
             }
             else if (raw.startsWith("SEARCH_ALL:")) {
                 String keyword = raw.replace("SEARCH_ALL:", "").trim();
                 // extra=1 代表广播
-                PacketHandler.sendToPlayer(new S2CMusicCommandPacket(
-                        S2CMusicCommandPacket.Action.SEARCH_AND_PLAY, keyword, 1), player);
+                PacketHandler.sendToPlayer(new S2CMusicCommandPayload(
+                        S2CMusicCommandPayload.Action.SEARCH_AND_PLAY, keyword, 1), player);
             }
 
         } catch (Exception e) {
@@ -124,8 +124,8 @@ public class LLMClient {
     private static void handleAiMusic(ServerPlayer player, String keyword, boolean isGlobal) {
         System.out.println(">>> [Music Debug] AI 发起搜索: [" + keyword + "]");
 
-        S2CMusicCommandPacket packet = new S2CMusicCommandPacket(
-                S2CMusicCommandPacket.Action.SEARCH_AND_PLAY,
+        S2CMusicCommandPayload packet = new S2CMusicCommandPayload(
+                S2CMusicCommandPayload.Action.SEARCH_AND_PLAY,
                 keyword,
                 isGlobal ? 1 : 0
         );
@@ -134,7 +134,7 @@ public class LLMClient {
     }
 
     private static void handleStopMusic(ServerPlayer player) {
-        PacketHandler.sendToPlayer(new S2CMusicCommandPacket(S2CMusicCommandPacket.Action.STOP), player);
+        PacketHandler.sendToPlayer(new S2CMusicCommandPayload(S2CMusicCommandPayload.Action.STOP), player);
     }
 
     /**

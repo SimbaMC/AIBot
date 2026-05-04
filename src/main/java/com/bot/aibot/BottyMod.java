@@ -9,37 +9,38 @@ import com.bot.aibot.network.PacketHandler;
 import com.bot.aibot.utils.ChineseUtils;
 import com.bot.aibot.utils.NeteaseApi;
 import net.minecraft.server.MinecraftServer;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.server.ServerStartingEvent;
-import net.minecraftforge.event.server.ServerStoppingEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.ModLoadingContext;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.config.ModConfig;
-import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
+import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.server.ServerStartingEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 
-@Mod("aibot")
+@Mod(BottyMod.MOD_ID)
 public class BottyMod {
 
+    public static final String MOD_ID = "aibot";
     public static MinecraftServer serverInstance;
 
-    public BottyMod() {
+    public BottyMod(IEventBus modEventBus, ModContainer modContainer) {
         // 注册配置
-        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, BotConfig.SERVER_SPEC);
-        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, BotConfig.CLIENT_SPEC);
+        modContainer.registerConfig(ModConfig.Type.COMMON, BotConfig.SERVER_SPEC);
+        modContainer.registerConfig(ModConfig.Type.CLIENT, BotConfig.CLIENT_SPEC);
 
-        // 注册事件
-        MinecraftForge.EVENT_BUS.register(this);
-        MinecraftForge.EVENT_BUS.register(new MinecraftEvents());
-        MinecraftForge.EVENT_BUS.register(new ModCommands());
-        MinecraftForge.EVENT_BUS.register(new AdvancementEvents());
-
-        // 注册网络包
-        PacketHandler.register();
+        // 注册网络包 (mod event bus)
+        modEventBus.addListener(PacketHandler::register);
 
         // 注册客户端初始化事件
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::doClientStuff);
+        modEventBus.addListener(this::doClientStuff);
+
+        // 注册事件 (game event bus)
+        NeoForge.EVENT_BUS.register(this);
+        NeoForge.EVENT_BUS.register(new MinecraftEvents());
+        NeoForge.EVENT_BUS.register(new ModCommands());
+        NeoForge.EVENT_BUS.register(new AdvancementEvents());
     }
 
     private void doClientStuff(final FMLClientSetupEvent event) {

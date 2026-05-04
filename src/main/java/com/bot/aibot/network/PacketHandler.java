@@ -1,62 +1,83 @@
 package com.bot.aibot.network;
 
-import com.bot.aibot.network.packet.*;
-import net.minecraft.resources.ResourceLocation;
+import com.bot.aibot.client.ClientPacketHandler;
+import com.bot.aibot.network.payload.C2SMusicActionPayload;
+import com.bot.aibot.network.payload.C2SReportMusicPayload;
+import com.bot.aibot.network.payload.S2CMusicCommandPayload;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkDirection;
-import net.minecraftforge.network.NetworkRegistry;
-import net.minecraftforge.network.PacketDistributor;
-import net.minecraftforge.network.simple.SimpleChannel;
+import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 public class PacketHandler {
-    private static final String PROTOCOL_VERSION = "1";
-    public static final SimpleChannel INSTANCE = NetworkRegistry.newSimpleChannel(
-            new ResourceLocation("aibot", "main"),
-            () -> PROTOCOL_VERSION,
-            PROTOCOL_VERSION::equals,
-            PROTOCOL_VERSION::equals
-    );
 
-    public static void register() {
-        int id = 0;
+    public static void register(final RegisterPayloadHandlersEvent event) {
+        final PayloadRegistrar registrar = event.registrar("1");
 
-        INSTANCE.messageBuilder(C2SReportMusicPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
-                .decoder(C2SReportMusicPacket::new)
-                .encoder(C2SReportMusicPacket::encode)
-                .consumerMainThread(C2SReportMusicPacket::handle)
-                .add();
+        registrar.playToServer(
+                C2SReportMusicPayload.TYPE,
+                C2SReportMusicPayload.STREAM_CODEC,
+                PacketHandler::handleReportMusic
+        );
 
-        // 【新增】注册 C2SMusicActionPacket
-        INSTANCE.messageBuilder(C2SMusicActionPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
-                .decoder(C2SMusicActionPacket::new)
-                .encoder(C2SMusicActionPacket::encode)
-                .consumerMainThread(C2SMusicActionPacket::handle)
-                .add();
+        registrar.playToServer(
+                C2SMusicActionPayload.TYPE,
+                C2SMusicActionPayload.STREAM_CODEC,
+                PacketHandler::handleMusicAction
+        );
 
-        // --- 【新增】注册新包 ---
-        INSTANCE.messageBuilder(S2CMusicCommandPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .decoder(S2CMusicCommandPacket::new)
-                .encoder(S2CMusicCommandPacket::encode)
-                .consumerMainThread(S2CMusicCommandPacket::handle)
-                .add();
-
+        registrar.playToClient(
+                S2CMusicCommandPayload.TYPE,
+                S2CMusicCommandPayload.STREAM_CODEC,
+                PacketHandler::handleMusicCommand
+        );
     }
 
-    // --- 新增以下方法 ---
+    private static void handleReportMusic(C2SReportMusicPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> {
+            if (!(context.player() instanceof ServerPlayer sender)) return;
 
-    /**
-     * 发送给指定玩家 (服务端 -> 客户端)
-     */
-    public static <MSG> void sendToPlayer(MSG message, ServerPlayer player) {
-        INSTANCE.send(PacketDistributor.PLAYER.with(() -> player), message);
+            S2CMusicCommandPayload playPacket = new S2CMusicCommandPayload(
+                    S2CMusicCommandPayload.Action.PLAY_Direct,
+                    payload.url(),
+                    payload.duration()
+            );
+
+            if (payload.isGlobal()) {
+                sender.getServer().getPlayerList().getPlayers()
+                        .forEach(p -> PacketDistributor.sendToPlayer(p, playPacket));
+                String msg = "正在全服播放: §a" + payload.songName();
+                sender.getServer().getPlayerList().broadcastSystemMessage(Component.literal(msg), false);
+            } else {
+                PacketDistributor.sendToPlayer(sender, playPacket);
+            }
+        });
     }
 
-    public static <MSG> void sendToServer(MSG message) {
-        INSTANCE.sendToServer(message);
+    private static void handleMusicAction(C2SMusicActionPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> {
+            if (!(context.player() instanceof ServerPlayer sender)) return;
+            S2CMusicCommandPayload stopPacket = new S2CMusicCommandPayload(S2CMusicCommandPayload.Action.STOP);
+            sender.getServer().getPlayerList().getPlayers()
+                    .forEach(p -> PacketDistributor.sendToPlayer(p, stopPacket));
+        });
     }
 
-    // 【新增】广播给所有人
-    public static <MSG> void sendToAll(MSG message) {
-        INSTANCE.send(PacketDistributor.ALL.noArg(), message);
+    private static void handleMusicCommand(S2CMusicCommandPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> ClientPacketHandler.handle(payload.action(), payload.data(), payload.extra()));
+    }
+
+    public static void sendToPlayer(S2CMusicCommandPayload payload, ServerPlayer player) {
+        PacketDistributor.sendToPlayer(player, payload);
+    }
+
+    public static void sendToServer(C2SReportMusicPayload payload) {
+        PacketDistributor.sendToServer(payload);
+    }
+
+    public static void sendToServer(C2SMusicActionPayload payload) {
+        PacketDistributor.sendToServer(payload);
     }
 }

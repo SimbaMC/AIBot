@@ -4,12 +4,12 @@ package com.bot.aibot.events;
 import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.network.BotClient;
 import com.bot.aibot.utils.ChineseUtils;
-import net.minecraft.advancements.Advancement;
+import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.AdvancementProgress;
 import net.minecraft.advancements.DisplayInfo;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.event.entity.player.AdvancementEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.event.entity.player.AdvancementEvent;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,18 +29,18 @@ public class AdvancementEvents {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
 
         // 3. 检查进度是否完成
-        Advancement adv = event.getAdvancement();
+        AdvancementHolder adv = event.getAdvancement();
         AdvancementProgress progress = player.getAdvancements().getOrStartProgress(adv);
         if (!progress.isDone()) return;
 
         // 4. 获取显示信息
-        DisplayInfo display = adv.getDisplay();
+        DisplayInfo display = adv.value().display().orElse(null);
         if (display == null || !display.shouldAnnounceChat()) return;
 
         // --- 【修复 1】防重复播报逻辑 ---
         String playerName = player.getName().getString();
         // 组合一个唯一的 Key：玩家名 + 成就ID (例如: Dev:minecraft:story/mine_stone)
-        String uniqueKey = playerName + ":" + adv.getId().toString();
+        String uniqueKey = playerName + ":" + adv.id().toString();
         long now = System.currentTimeMillis();
 
         // 如果 1 秒内已经播报过这个成就，直接跳过
