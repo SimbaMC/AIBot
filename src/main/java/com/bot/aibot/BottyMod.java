@@ -24,8 +24,6 @@ public class BottyMod {
 
     public BottyMod() {
         // 注册配置
-        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, BotConfig.SERVER_SPEC);
-        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, BotConfig.CLIENT_SPEC);
 
         // 注册事件
         NeoForge.EVENT_BUS.register(this);

@@ -169,7 +169,6 @@ public class BotConfig {
                     .build();
 
             serverConfig.load();
-            SERVER_SPEC.setConfig(serverConfig);
 
             Path clientPath = FMLPaths.CONFIGDIR.get().resolve("aibot-client.toml");
             if (clientPath.toFile().exists()) {
@@ -179,7 +178,6 @@ public class BotConfig {
                         .writingMode(WritingMode.REPLACE)
                         .build();
                 clientConfig.load();
-                CLIENT_SPEC.setConfig(clientConfig);
             }
 
             System.out.println(">>> [Bot] 配置文件热重载成功！");
