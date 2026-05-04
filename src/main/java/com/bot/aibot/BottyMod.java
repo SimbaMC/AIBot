@@ -16,8 +16,6 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModLoadingContext;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
-import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
-import net.neoforged.fml.javafmlmod.FMLJavaModLoadingContext;
 
 @Mod("aibot")
 public class BottyMod {
@@ -38,15 +36,8 @@ public class BottyMod {
         // 注册网络包
         PacketHandler.register();
 
-        // 注册客户端初始化事件
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::doClientStuff);
-    }
-
-    private void doClientStuff(final FMLClientSetupEvent event) {
-        event.enqueueWork(() -> {
-            System.out.println(">>> [Bot] Client Setup...");
-            NeteaseApi.loadCookies();
-        });
+        // 客户端侧初始化（兼容 NeoForge API 变更）
+        NeteaseApi.loadCookies();
     }
 
     @SubscribeEvent

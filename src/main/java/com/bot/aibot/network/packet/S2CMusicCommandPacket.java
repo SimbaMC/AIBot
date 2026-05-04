@@ -2,7 +2,7 @@ package com.bot.aibot.network.packet;
 
 import com.bot.aibot.client.ClientPacketHandler;
 import net.minecraft.network.FriendlyByteBuf;
-import net.neoforged.neoforge.network.NetworkEvent;
+import net.minecraftforge.network.NetworkEvent;
 
 import java.util.function.Supplier;
 
