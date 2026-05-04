@@ -13,21 +13,21 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.ModLoadingContext;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
-import net.neoforged.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.ModContainer;
 
 @Mod("aibot")
 public class BottyMod {
 
     public static MinecraftServer serverInstance;
 
-    public BottyMod() {
+    public BottyMod(IEventBus modBus, ModContainer modContainer) {
         // 注册配置
-        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, BotConfig.SERVER_SPEC);
-        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, BotConfig.CLIENT_SPEC);
+        modContainer.registerConfig(ModConfig.Type.COMMON, BotConfig.SERVER_SPEC);
+        modContainer.registerConfig(ModConfig.Type.CLIENT, BotConfig.CLIENT_SPEC);
 
         // 注册事件
         NeoForge.EVENT_BUS.register(this);
@@ -39,7 +39,7 @@ public class BottyMod {
         PacketHandler.register();
 
         // 注册客户端初始化事件
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::doClientStuff);
+        modBus.addListener(this::doClientStuff);
     }
 
     private void doClientStuff(final FMLClientSetupEvent event) {

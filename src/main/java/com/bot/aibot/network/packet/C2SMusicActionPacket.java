@@ -2,7 +2,6 @@ package com.bot.aibot.network.packet;
 
 import com.bot.aibot.network.PacketHandler;
 import net.minecraft.network.FriendlyByteBuf;
-import net.neoforged.neoforge.network.NetworkEvent;
 
 import java.util.function.Supplier;
 
@@ -21,7 +20,7 @@ public class C2SMusicActionPacket {
         buf.writeInt(this.action);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> ctx) {
+    public void handle(Supplier<?> ctx) {
         ctx.get().enqueueWork(() -> {
             // 【修复】服务端收到控制指令，广播给全服
             // 目前无论 action 是 0 还是 1，我们都统一处理为 STOP
