@@ -2,9 +2,7 @@ package com.bot.aibot.network.packet;
 
 import com.bot.aibot.client.ClientPacketHandler;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraftforge.network.NetworkEvent;
 
-import java.util.function.Supplier;
 
 /**
  * 服务端 -> 客户端
@@ -58,11 +56,7 @@ public class S2CMusicCommandPacket {
     }
 
     // 处理逻辑 (转发给 ClientPacketHandler)
-    public static void handle(S2CMusicCommandPacket msg, Supplier<NetworkEvent.Context> ctx) {
-        ctx.get().enqueueWork(() -> {
-            // 调用客户端处理逻辑
-            ClientPacketHandler.handle(msg.action, msg.data, msg.extra);
-        });
-        ctx.get().setPacketHandled(true);
+    public static void handle(S2CMusicCommandPacket msg) {
+        ClientPacketHandler.handle(msg.action, msg.data, msg.extra);
     }
 }
