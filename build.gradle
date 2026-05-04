@@ -27,6 +27,7 @@ neoForge {
             gameDirectory = project.file('run')
             systemProperty 'forge.logging.markers', 'REGISTRIES'
             systemProperty 'forge.logging.console.level', 'debug'
+            jvmArgument '-Dfile.encoding=UTF-8'
         }
 
         client {
