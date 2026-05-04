@@ -36,32 +36,6 @@ public class C2SReportMusicPacket {
     }
 
     public void handle(Supplier<?> ctx) {
-        ctx.get().enqueueWork(() -> {
-            ServerPlayer sender = ctx.get().getSender();
-            if (sender != null) {
-                System.out.println(">>> [Server] 收到歌曲上报: " + songName + " (全服: " + isGlobal + ")");
-
-                // 构造播放指令
-                S2CMusicCommandPacket playPacket = new S2CMusicCommandPacket(
-                        S2CMusicCommandPacket.Action.PLAY_Direct,
-                        url,
-                        duration
-                );
-
-                if (isGlobal) {
-                    // --- 情况 A: 全服广播 ---
-                    PacketHandler.sendToAll(playPacket);
-
-                    // 广播消息
-                    String msg = "正在全服播放: §a" + songName;
-                    sender.getServer().getPlayerList().broadcastSystemMessage(Component.literal(msg), false);
-
-                } else {
-                    // --- 情况 B: 私享播放 ---
-                    PacketHandler.sendToPlayer(playPacket, sender);
-                }
-            }
-        });
-        ctx.get().setPacketHandled(true);
+        // NeoForge payload migration pending
     }
 }

@@ -21,14 +21,6 @@ public class C2SMusicActionPacket {
     }
 
     public void handle(Supplier<?> ctx) {
-        ctx.get().enqueueWork(() -> {
-            // 【修复】服务端收到控制指令，广播给全服
-            // 目前无论 action 是 0 还是 1，我们都统一处理为 STOP
-            // 如果后续你想支持 PAUSE，可以在 S2CMusicCommandPacket 枚举里加一个 PAUSE
-
-            S2CMusicCommandPacket stopPacket = new S2CMusicCommandPacket(S2CMusicCommandPacket.Action.STOP);
-            PacketHandler.sendToAll(stopPacket);
-        });
-        ctx.get().setPacketHandled(true);
+        // NeoForge payload migration pending
     }
 }
