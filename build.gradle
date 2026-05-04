@@ -16,29 +16,17 @@ base {
 // Minecraft 1.21.1 requires Java 21
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
-neoForge {
-    version = project.neo_version
-
-    runs {
-        configureEach {
-            workingDirectory project.file('run')
-            logLevel = org.slf4j.event.Level.DEBUG
-        }
-
-        client {
-            client()
-        }
-
-        server {
-            server()
-            programArguments.addAll '--nogui'
-        }
+// Default run configurations.
+runs {
+    configureEach {
+        workingDirectory project.file('run')
+        modSource project.sourceSets.main
     }
 
-    mods {
-        "${mod_id}" {
-            sourceSet(sourceSets.main)
-        }
+    client {}
+
+    server {
+        argument '--nogui'
     }
 }
 
