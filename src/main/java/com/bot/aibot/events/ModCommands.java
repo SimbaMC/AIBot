@@ -8,8 +8,8 @@ import com.bot.aibot.network.packet.S2CMusicCommandPacket;
 import com.mojang.brigadier.arguments.LongArgumentType;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
-import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.bus.api.SubscribeEvent;
 
 public class ModCommands {
     @SubscribeEvent
