@@ -23,12 +23,15 @@ public class BottyMod {
     public static MinecraftServer serverInstance;
 
     public BottyMod() {
+        System.out.println(">>> [Bot] BottyMod constructor invoked");
         // 注册配置
 
         // 注册事件
         NeoForge.EVENT_BUS.register(this);
         NeoForge.EVENT_BUS.register(new MinecraftEvents());
-        NeoForge.EVENT_BUS.register(new ModCommands());
+        ModCommands modCommands = new ModCommands();
+        NeoForge.EVENT_BUS.register(modCommands);
+        NeoForge.EVENT_BUS.addListener(modCommands::onRegisterCommands);
         NeoForge.EVENT_BUS.register(new AdvancementEvents());
 
         // 注册网络包
