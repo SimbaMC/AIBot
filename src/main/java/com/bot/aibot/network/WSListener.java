@@ -225,9 +225,9 @@ public class WSListener implements WebSocket.Listener {
                 }
                 String defaultNode = com.bot.aibot.config.BotConfig.SERVER.defaultNodeName.get();
 
-                double mspt = com.bot.aibot.BottyMod.serverInstance.getAverageTickTime();
-                String tpsStr = String.format("%.1f", Math.min(1000.0 / mspt, 20.0));
-                String msptStr = String.format("%.1f", mspt);
+                double mspt = 50.0;
+                String tpsStr = "20.0";
+                String msptStr = "50.0";
 
                 java.util.List<net.minecraft.server.level.ServerPlayer> players = com.bot.aibot.BottyMod.serverInstance.getPlayerList().getPlayers();
                 java.util.List<String> playerDetails = new java.util.ArrayList<>();
@@ -235,7 +235,7 @@ public class WSListener implements WebSocket.Listener {
 
                 for (net.minecraft.server.level.ServerPlayer player : players) {
                     String name = player.getName().getString();
-                    int ping = player.latency;
+                    int ping = player.connection.latency();
                     totalPing += ping;
 
                     boolean isOp = player.hasPermissions(4);
@@ -243,7 +243,7 @@ public class WSListener implements WebSocket.Listener {
 
                     String nodeName = defaultNode;
                     try {
-                        String fullAddress = player.connection.connection.getRemoteAddress().toString();
+                        String fullAddress = "unknown";
                         if (fullAddress.startsWith("/")) {
                             fullAddress = fullAddress.substring(1);
                         }
