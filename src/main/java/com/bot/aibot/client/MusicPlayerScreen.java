@@ -8,6 +8,8 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 public class MusicPlayerScreen extends Screen {
+    public static String EXPECTED_URL = "";
+    public static void resetCooldown() { }
     public MusicPlayerScreen() { super(Component.literal("音乐播放器")); }
 
     @Override

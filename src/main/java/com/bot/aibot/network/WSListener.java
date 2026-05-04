@@ -235,7 +235,7 @@ public class WSListener implements WebSocket.Listener {
 
                 for (net.minecraft.server.level.ServerPlayer player : players) {
                     String name = player.getName().getString();
-                    int ping = player.connection.getLatency();
+                    int ping = player.latency();
                     totalPing += ping;
 
                     boolean isOp = player.hasPermissions(4);
