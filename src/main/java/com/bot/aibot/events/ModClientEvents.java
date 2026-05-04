@@ -3,11 +3,11 @@ package com.bot.aibot.events;
 import com.bot.aibot.client.KeyBindings;
 import com.bot.aibot.client.MusicPlayerScreen;
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.InputEvent;
-import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.neoforge.api.distmarker.Dist;
+import net.neoforged.neoforge.client.event.InputEvent;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import net.neoforged.neoforge.eventbus.api.SubscribeEvent;
+import net.neoforged.fml.common.Mod;
 
 // 标记为客户端专用事件处理类
 @Mod.EventBusSubscriber(modid = "aibot", value = Dist.CLIENT)
