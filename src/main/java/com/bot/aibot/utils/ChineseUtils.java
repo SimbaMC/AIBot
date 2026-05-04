@@ -5,7 +5,6 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.contents.LiteralContents;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLPaths;
@@ -219,11 +218,7 @@ public class ChineseUtils {
                 return component.getString(); // 格式化失败回退
             }
         }
-        // ... 其他部分保持不变 (LiteralContents, Siblings) ...
-        StringBuilder sb = new StringBuilder();
-        if (component.getContents() instanceof LiteralContents literal) {
-            sb.append(literal.text());
-        }
+        StringBuilder sb = new StringBuilder(component.getString());
         for (Component sibling : component.getSiblings()) {
             sb.append(translate(sibling));
         }
