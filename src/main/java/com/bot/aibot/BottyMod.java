@@ -9,10 +9,10 @@ import com.bot.aibot.network.PacketHandler;
 import com.bot.aibot.utils.ChineseUtils;
 import com.bot.aibot.utils.NeteaseApi;
 import net.minecraft.server.MinecraftServer;
-import net.neoforged.neoforge.common.MinecraftForge;
+import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
-import net.neoforged.neoforge.eventbus.api.SubscribeEvent;
+import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModLoadingContext;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
@@ -30,10 +30,10 @@ public class BottyMod {
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, BotConfig.CLIENT_SPEC);
 
         // 注册事件
-        MinecraftForge.EVENT_BUS.register(this);
-        MinecraftForge.EVENT_BUS.register(new MinecraftEvents());
-        MinecraftForge.EVENT_BUS.register(new ModCommands());
-        MinecraftForge.EVENT_BUS.register(new AdvancementEvents());
+        NeoForge.EVENT_BUS.register(this);
+        NeoForge.EVENT_BUS.register(new MinecraftEvents());
+        NeoForge.EVENT_BUS.register(new ModCommands());
+        NeoForge.EVENT_BUS.register(new AdvancementEvents());
 
         // 注册网络包
         PacketHandler.register();

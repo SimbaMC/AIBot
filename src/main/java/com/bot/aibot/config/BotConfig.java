@@ -2,7 +2,7 @@ package com.bot.aibot.config;
 
 import com.electronwill.nightconfig.core.file.CommentedFileConfig;
 import com.electronwill.nightconfig.core.io.WritingMode;
-import net.neoforged.neoforge.common.ForgeConfigSpec;
+import net.neoforged.neoforge.common.ModConfigSpec;
 import net.neoforged.fml.loading.FMLPaths;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -13,60 +13,60 @@ import java.util.List;
 public class BotConfig {
 
     public static final ServerConfig SERVER;
-    public static final ForgeConfigSpec SERVER_SPEC;
+    public static final ModConfigSpec SERVER_SPEC;
 
     public static final ClientConfig CLIENT;
-    public static final ForgeConfigSpec CLIENT_SPEC;
+    public static final ModConfigSpec CLIENT_SPEC;
 
     static {
-        final Pair<ServerConfig, ForgeConfigSpec> serverPair = new ForgeConfigSpec.Builder().configure(ServerConfig::new);
+        final Pair<ServerConfig, ModConfigSpec> serverPair = new ModConfigSpec.Builder().configure(ServerConfig::new);
         SERVER_SPEC = serverPair.getRight();
         SERVER = serverPair.getLeft();
 
-        final Pair<ClientConfig, ForgeConfigSpec> clientPair = new ForgeConfigSpec.Builder().configure(ClientConfig::new);
+        final Pair<ClientConfig, ModConfigSpec> clientPair = new ModConfigSpec.Builder().configure(ClientConfig::new);
         CLIENT_SPEC = clientPair.getRight();
         CLIENT = clientPair.getLeft();
     }
 
     public static class ServerConfig {
-        public final ForgeConfigSpec.ConfigValue<String> wsUrl;
-        public final ForgeConfigSpec.ConfigValue<List<? extends Number>> groupIds;
-        public final ForgeConfigSpec.ConfigValue<Long> targetBotId;
-        public final ForgeConfigSpec.ConfigValue<String> accessToken;
-        public final ForgeConfigSpec.BooleanValue reconnectEnabled;
-        public final ForgeConfigSpec.IntValue reconnectInitialInterval;
-        public final ForgeConfigSpec.DoubleValue reconnectMultiplier;
-        public final ForgeConfigSpec.IntValue reconnectMaxInterval;
+        public final ModConfigSpec.ConfigValue<String> wsUrl;
+        public final ModConfigSpec.ConfigValue<List<? extends Number>> groupIds;
+        public final ModConfigSpec.ConfigValue<Long> targetBotId;
+        public final ModConfigSpec.ConfigValue<String> accessToken;
+        public final ModConfigSpec.BooleanValue reconnectEnabled;
+        public final ModConfigSpec.IntValue reconnectInitialInterval;
+        public final ModConfigSpec.DoubleValue reconnectMultiplier;
+        public final ModConfigSpec.IntValue reconnectMaxInterval;
 
-        public final ForgeConfigSpec.BooleanValue enableChatSync;
-        public final ForgeConfigSpec.BooleanValue enableJoinLeave;
-        public final ForgeConfigSpec.BooleanValue enableDeath;
-        public final ForgeConfigSpec.ConfigValue<String> mcPrefix;
-        public final ForgeConfigSpec.BooleanValue enableAdvancement;
+        public final ModConfigSpec.BooleanValue enableChatSync;
+        public final ModConfigSpec.BooleanValue enableJoinLeave;
+        public final ModConfigSpec.BooleanValue enableDeath;
+        public final ModConfigSpec.ConfigValue<String> mcPrefix;
+        public final ModConfigSpec.BooleanValue enableAdvancement;
 
-        public final ForgeConfigSpec.BooleanValue enableAI;
-        public final ForgeConfigSpec.ConfigValue<String> aiApiUrl;
-        public final ForgeConfigSpec.ConfigValue<String> aiApiKey;
-        public final ForgeConfigSpec.ConfigValue<String> aiModelName;
-        public final ForgeConfigSpec.ConfigValue<String> aiPrompt;
-        public final ForgeConfigSpec.ConfigValue<String> aiTriggerPrefix;
-        public final ForgeConfigSpec.ConfigValue<String> aiDeathMode;
-        public final ForgeConfigSpec.ConfigValue<String> aiDeathPrompt;
+        public final ModConfigSpec.BooleanValue enableAI;
+        public final ModConfigSpec.ConfigValue<String> aiApiUrl;
+        public final ModConfigSpec.ConfigValue<String> aiApiKey;
+        public final ModConfigSpec.ConfigValue<String> aiModelName;
+        public final ModConfigSpec.ConfigValue<String> aiPrompt;
+        public final ModConfigSpec.ConfigValue<String> aiTriggerPrefix;
+        public final ModConfigSpec.ConfigValue<String> aiDeathMode;
+        public final ModConfigSpec.ConfigValue<String> aiDeathPrompt;
 
-        public final ForgeConfigSpec.IntValue broadcastCooldown;
+        public final ModConfigSpec.IntValue broadcastCooldown;
 
-        public final ForgeConfigSpec.ConfigValue<String> joinMsgFormat;
-        public final ForgeConfigSpec.ConfigValue<String> leaveMsgFormat;
-        public final ForgeConfigSpec.ConfigValue<String> deathMsgFormat;
-        public final ForgeConfigSpec.ConfigValue<String> chatMsgFormat;
-        public final ForgeConfigSpec.ConfigValue<String> advancementMsgFormat;
-        public final ForgeConfigSpec.ConfigValue<String> startMsgFormat;
-        public final ForgeConfigSpec.ConfigValue<List<? extends String>> nodeMappings;
-        public final ForgeConfigSpec.ConfigValue<String> defaultNodeName;
+        public final ModConfigSpec.ConfigValue<String> joinMsgFormat;
+        public final ModConfigSpec.ConfigValue<String> leaveMsgFormat;
+        public final ModConfigSpec.ConfigValue<String> deathMsgFormat;
+        public final ModConfigSpec.ConfigValue<String> chatMsgFormat;
+        public final ModConfigSpec.ConfigValue<String> advancementMsgFormat;
+        public final ModConfigSpec.ConfigValue<String> startMsgFormat;
+        public final ModConfigSpec.ConfigValue<List<? extends String>> nodeMappings;
+        public final ModConfigSpec.ConfigValue<String> defaultNodeName;
 
-        public final ForgeConfigSpec.ConfigValue<String> qqFaceApi;
+        public final ModConfigSpec.ConfigValue<String> qqFaceApi;
 
-        public ServerConfig(ForgeConfigSpec.Builder builder) {
+        public ServerConfig(ModConfigSpec.Builder builder) {
             builder.push("Status_Command_Settings");
 
             nodeMappings = builder
@@ -148,9 +148,9 @@ public class BotConfig {
     }
 
     public static class ClientConfig {
-        public final ForgeConfigSpec.ConfigValue<String> neteaseCookie;
+        public final ModConfigSpec.ConfigValue<String> neteaseCookie;
 
-        public ClientConfig(ForgeConfigSpec.Builder builder) {
+        public ClientConfig(ModConfigSpec.Builder builder) {
             builder.comment("Client Settings").push("client");
             neteaseCookie = builder.comment("网易云账号Cookie")
                     .define("netease_cookie", "");
