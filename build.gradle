@@ -30,11 +30,13 @@ neoForge {
         }
 
         client {
+            type = "client"
             systemProperty 'forge.enabledGameTestNamespaces', mod_id
             programArgument '-mixin.config=aibot.mixins.json'
         }
 
         server {
+            type = "server"
             systemProperty 'forge.enabledGameTestNamespaces', mod_id
             programArgument '--nogui'
             programArgument '-mixin.config=aibot.mixins.json'
