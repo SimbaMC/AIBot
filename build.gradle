@@ -3,7 +3,6 @@ plugins {
     id 'maven-publish'
     id 'net.neoforged.moddev' version '2.0.78'
     id 'com.github.johnrengelman.shadow' version '8.1.1'
-    id 'org.spongepowered.mixin' version '0.7.+'
 }
 
 version = mod_version
@@ -49,11 +48,6 @@ neoForge {
     }
 }
 
-mixin {
-    add sourceSets.main, "aibot.refmap.json"
-    config "aibot.mixins.json"
-}
-
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
@@ -69,8 +63,6 @@ configurations {
 }
 
 dependencies {
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
-
     shade 'javazoom:jlayer:1.0.1'
     runtimeOnly 'javazoom:jlayer:1.0.1'
 }
