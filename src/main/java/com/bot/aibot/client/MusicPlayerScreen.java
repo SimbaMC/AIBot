@@ -262,10 +262,12 @@ public class MusicPlayerScreen extends Screen {
         int listH = WINDOW_HEIGHT - 35 - 40 - 65;
 
         this.songList = new SongListWidget(this.minecraft, WINDOW_WIDTH - 20, listH, listY);
-                this.addWidget(this.songList);
+        this.songList.setX(leftPos + 10);
+        this.addWidget(this.songList);
 
         this.playlistList = new PlaylistListWidget(this.minecraft, WINDOW_WIDTH - 20, listH, listY);
-                this.addWidget(this.playlistList);
+        this.playlistList.setX(leftPos + 10);
+        this.addWidget(this.playlistList);
 
         if (CACHED_CURRENT_LIST != null) this.songList.refreshList(CACHED_CURRENT_LIST);
         if (CACHED_USER_PLAYLISTS != null) this.playlistList.refreshList(CACHED_USER_PLAYLISTS);
@@ -602,7 +604,7 @@ public class MusicPlayerScreen extends Screen {
     class SongListWidget extends ObjectSelectionList<SongListWidget.SongEntry> {
         public boolean visible = true;
         public SongListWidget(Minecraft mc, int width, int height, int top) {
-            super(mc, width, height, top, top + height);
+            super(mc, width, height, top, 20);
         }
         @Override public boolean mouseClicked(double mx, double my, int btn) {
             if (!this.visible) return false;
@@ -653,7 +655,7 @@ public class MusicPlayerScreen extends Screen {
     class PlaylistListWidget extends ObjectSelectionList<PlaylistListWidget.PlaylistEntry> {
         public boolean visible = false;
         public PlaylistListWidget(Minecraft mc, int width, int height, int top) {
-            super(mc, width, height, top, top + height);
+            super(mc, width, height, top, 20);
         }
         @Override public boolean mouseClicked(double mx, double my, int btn) {
             if (!this.visible) return false;
