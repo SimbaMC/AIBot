@@ -68,19 +68,31 @@ repositories {
     }
 }
 configurations {
+    bundledLibs
     shade
-    implementation.extendsFrom shade
+    implementation.extendsFrom shade, bundledLibs
 }
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
-
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
-
+    bundledLibs 'javazoom:jlayer:1.0.1'
+    implementation 'javazoom:jlayer:1.0.1'
     shade 'javazoom:jlayer:1.0.1'
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
     minecraftLibrary 'javazoom:jlayer:1.0.1'
-
 }
+
+def unpackedJlayerDir = layout.buildDirectory.dir("generated/jlayer-classes")
+tasks.register('unpackJlayer', Copy) {
+    from {
+        configurations.bundledLibs.collect { zipTree(it) }
+    }
+    include 'javazoom/jl/**'
+    into unpackedJlayerDir
+}
+sourceSets.main.output.dir(unpackedJlayerDir, builtBy: tasks.named('unpackJlayer'))
+tasks.named('classes').configure { dependsOn(tasks.named('unpackJlayer')) }
+
 reobf {
     shadowJar {} // 【关键】这行代码会生成 reobfShadowJar 任务
 }
@@ -89,11 +101,6 @@ tasks.named('shadowJar', com.github.jengelman.gradle.plugins.shadow.tasks.Shadow
 
     // 包含所有 implementation 依赖
     configurations = [project.configurations.shade]
-
-    // 【强烈建议】重定位包名，防止和其他也用了 jlayer 的模组冲突
-    relocate 'javazoom.jl', 'com.bot.aibot.shadow.javazoom.jl'
-
-    // 排除不必要的文件
     exclude 'META-INF/maven/**'
     exclude 'META-INF/LICENSE*'
 
