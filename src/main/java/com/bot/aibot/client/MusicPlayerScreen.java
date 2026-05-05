@@ -492,7 +492,8 @@ public class MusicPlayerScreen extends Screen {
     // === 渲染与输入 ===
     @Override
     public void render(GuiGraphics g, int mx, int my, float pt) {
-        this.renderBackground(g, mx, my, pt);
+        // 避免默认背景高斯模糊影响二维码扫码清晰度
+        g.fill(0, 0, this.width, this.height, 0xAA000000);
         g.fill(leftPos, topPos, leftPos + WINDOW_WIDTH, topPos + WINDOW_HEIGHT, COLOR_BG);
         g.fill(leftPos, topPos, leftPos + WINDOW_WIDTH, topPos + 30, COLOR_HEADER);
         g.drawString(this.font, "AiBot 云音乐", leftPos + 10, topPos + 10, COLOR_TEXT_ACTIVE, false);
