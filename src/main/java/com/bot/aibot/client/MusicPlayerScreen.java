@@ -783,10 +783,13 @@ public class MusicPlayerScreen extends Screen {
     private void renderQrLayer(GuiGraphics g, int mx, int my, float pt) {
         g.drawCenteredString(this.font, loginStatusText, leftPos + WINDOW_WIDTH / 2, topPos + 45, 0xFFE0E0E0);
         if (qrCodeCache != null) {
-            int scale = 3; int border = 2;
+            // 动态放大二维码，尽可能提高扫码成功率（避免 GUI 缩放导致的可读性下降）
+            int border = 4;
+            int maxPanelSize = WINDOW_HEIGHT - 95;
+            int scale = Math.max(4, maxPanelSize / (qrCodeCache.size + border * 2));
             int qrPixelSize = (qrCodeCache.size + border * 2) * scale;
             int startX = leftPos + (WINDOW_WIDTH - qrPixelSize) / 2;
-            int startY = topPos + 70;
+            int startY = topPos + 62;
             g.fill(startX, startY, startX + qrPixelSize, startY + qrPixelSize, 0xFFFFFFFF);
             for (int y = 0; y < qrCodeCache.size; y++) {
                 for (int x = 0; x < qrCodeCache.size; x++) {

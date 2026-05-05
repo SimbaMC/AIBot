@@ -8,7 +8,7 @@ import net.minecraft.network.chat.Component;
 public class LoginQrScreen extends Screen {
     private final String url;
     private QrCode qrCache;
-    private final int scale = 5; // 二维码放大倍数
+    private final int minScale = 6; // 二维码最小放大倍数
 
     public LoginQrScreen(String url) {
         super(Component.literal("扫码登录"));
@@ -32,6 +32,7 @@ public class LoginQrScreen extends Screen {
         graphics.fill(0, 0, this.width, this.height, 0xAA000000);
 
         if (qrCache != null) {
+            int scale = Math.max(minScale, Math.min(this.width, this.height) / (qrCache.size + 12));
             int qrSize = qrCache.size * scale;
             int startX = (this.width - qrSize) / 2;
             int startY = (this.height - qrSize) / 2;
