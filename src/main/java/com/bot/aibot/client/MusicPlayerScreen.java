@@ -515,6 +515,16 @@ public class MusicPlayerScreen extends Screen {
         }
     }
 
+    @Override
+    public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        // 禁用 Screen 默认背景渲染（包含模糊路径）
+    }
+
+    @Override
+    public void renderTransparentBackground(GuiGraphics guiGraphics) {
+        // 禁用 Screen 默认透明背景渲染（避免被其他调用触发模糊）
+    }
+
     private void renderPlayerLayer(GuiGraphics g, int mx, int my, float pt) {
         renderTab(g, "搜 索", Tab.SEARCH, leftPos + 90, topPos + 8, mx, my);
         renderTab(g, "我的喜欢", Tab.MY_LIKE, leftPos + 140, topPos + 8, mx, my);
