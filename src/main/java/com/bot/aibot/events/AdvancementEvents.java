@@ -5,11 +5,10 @@ import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.network.BotClient;
 import com.bot.aibot.utils.ChineseUtils;
 import net.minecraft.advancements.AdvancementHolder;
-import net.minecraft.advancements.AdvancementProgress;
 import net.minecraft.advancements.DisplayInfo;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.neoforge.event.entity.player.AdvancementEvent;
+import net.neoforged.neoforge.event.entity.player.AdvancementEvent.AdvancementEarnEvent;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -20,7 +19,7 @@ public class AdvancementEvents {
     private static final Map<String, Long> COOLDOWN_MAP = new ConcurrentHashMap<>();
 
     @SubscribeEvent
-    public void onAdvancement(AdvancementEvent event) {
+    public void onAdvancement(AdvancementEarnEvent event) {
         // 1. 检查总开关
         if (!BotConfig.SERVER.enableAdvancement.get()) return;
 
@@ -28,12 +27,8 @@ public class AdvancementEvents {
         if (event.getEntity().level().isClientSide) return;
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
 
-        // 3. 检查进度是否完成
+        // 3. AdvancementEarnEvent fires only when the advancement is fully earned (isDone)
         AdvancementHolder adv = event.getAdvancement();
-        AdvancementProgress progress = player.getAdvancements().getOrStartProgress(adv);
-        if (!progress.isDone()) return;
-
-        // 4. 获取显示信息
         DisplayInfo display = adv.value().display().orElse(null);
         if (display == null || !display.shouldAnnounceChat()) return;
 
