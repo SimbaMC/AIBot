@@ -5,6 +5,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
@@ -19,6 +21,7 @@ import java.time.Duration;
 import java.util.*;
 
 public class NeteaseApi {
+    private static final Logger LOGGER = LogManager.getLogger();
 
     private static final String BASE_URL = "https://music.163.com";
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.45 Safari/537.36";
@@ -60,7 +63,7 @@ public class NeteaseApi {
             String savedCookie = BotConfig.CLIENT.neteaseCookie.get();
             if (savedCookie == null || savedCookie.isEmpty()) return;
 
-            System.out.println(">>> [API] 正在恢复登录状态...");
+            LOGGER.info(">>> [API] 正在恢复登录状态...");
             URI uri = URI.create(BASE_URL);
             CookieStore store = cookieManager.getCookieStore();
 
@@ -74,7 +77,7 @@ public class NeteaseApi {
                     store.add(uri, cookie);
                 }
             }
-            System.out.println(">>> [API] 登录状态恢复成功！");
+            LOGGER.info(">>> [API] 登录状态恢复成功！");
         } catch (Exception e) {
             e.printStackTrace();
         }
