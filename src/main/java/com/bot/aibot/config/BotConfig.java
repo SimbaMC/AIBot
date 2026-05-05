@@ -188,17 +188,29 @@ public class BotConfig {
     }
 
     public static void saveClientCookie(String cookie) {
+        String normalized = cookie == null ? "" : cookie.trim();
+        try {
+            CLIENT.neteaseCookie.set(normalized);
+            CLIENT_SPEC.save();
+            return;
+        } catch (Exception ignored) {
+            // 部分环境下 CLIENT_SPEC.save() 可能在配置尚未绑定时不可用，走文件兜底。
+        }
+
         try {
             Path clientPath = FMLPaths.CONFIGDIR.get().resolve("aibot-client.toml");
             CommentedFileConfig clientConfig = CommentedFileConfig.builder(clientPath)
                     .sync()
+                    .autosave()
                     .writingMode(WritingMode.REPLACE)
                     .build();
-            clientConfig.load();
-            clientConfig.set("client.netease_cookie", cookie == null ? "" : cookie);
+            if (clientPath.toFile().exists()) {
+                clientConfig.load();
+            }
+            clientConfig.set("client.netease_cookie", normalized);
             clientConfig.save();
             clientConfig.close();
-            CLIENT.neteaseCookie.set(cookie == null ? "" : cookie);
+            CLIENT.neteaseCookie.set(normalized);
         } catch (Exception e) {
             System.err.println(">>> [Bot] 保存网易云 Cookie 失败: " + e.getMessage());
         }
