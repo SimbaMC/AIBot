@@ -59,4 +59,16 @@ public class S2CMusicCommandPacket {
     // 处理逻辑 (转发给 ClientPacketHandler)
     public static void handle(S2CMusicCommandPacket msg, Supplier<?> ctx) {
     }
+
+    public Action getAction() {
+        return action;
+    }
+
+    public String getData() {
+        return data;
+    }
+
+    public long getExtra() {
+        return extra;
+    }
 }
