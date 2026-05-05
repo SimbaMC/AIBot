@@ -222,10 +222,6 @@ public class ChineseUtils {
                 return component.getString(); // 格式化失败回退
             }
         }
-        StringBuilder sb = new StringBuilder(component.getString());
-        for (Component sibling : component.getSiblings()) {
-            sb.append(translate(sibling));
-        }
-        return sb.toString();
+        return component.getString();
     }
 }
