@@ -28,8 +28,8 @@ public class LoginQrScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        // 1. 绘制半透明黑色背景
-        this.renderBackground(graphics);
+        // 1. 绘制纯色遮罩，避免默认高斯模糊影响扫码
+        graphics.fill(0, 0, this.width, this.height, 0xAA000000);
 
         if (qrCache != null) {
             int qrSize = qrCache.size * scale;
