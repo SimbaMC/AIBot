@@ -27,6 +27,7 @@ neoForge {
             systemProperty 'forge.logging.markers', 'REGISTRIES'
             systemProperty 'forge.logging.console.level', 'debug'
             jvmArgument '-Dfile.encoding=UTF-8'
+            additionalRuntimeClasspath.from(configurations.libraries)
         }
 
         client {
@@ -60,13 +61,14 @@ repositories {
     }
 }
 configurations {
+    libraries
     shade
-    implementation.extendsFrom shade
+    implementation.extendsFrom shade, libraries
 }
 
 dependencies {
-    implementation 'javazoom:jlayer:1.0.1'
-    jarJar 'javazoom:jlayer:1.0.1'
+    libraries 'javazoom:jlayer:1.0.1'
+    jarJar(implementation('javazoom:jlayer:1.0.1'))
 }
 
 tasks.named('shadowJar', com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar).configure {
