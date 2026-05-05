@@ -4,8 +4,13 @@ on:
   push:
     branches:
       - main
+      - neoforge
     tags:
       - '*'
+  pull_request:
+    branches:
+      - main
+      - neoforge
 
 permissions:
   contents: write
