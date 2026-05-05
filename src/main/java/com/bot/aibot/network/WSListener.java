@@ -30,21 +30,8 @@ public class WSListener implements WebSocket.Listener {
 
     @Override
     public void onOpen(WebSocket webSocket) {
-        LOGGER.info(">>> [Bot] 连接成功！等待消息...");
+        LOGGER.info(">>> [Bot] 已建立连接通道，等待稳定性确认...");
         webSocket.request(1);
-
-        BotClient client = BotClient.getInstance();
-        client.onConnected();
-
-        // 延迟确认连接稳定，避免“刚连上立刻断开”时仍提示连接成功。
-        CompletableFuture.delayedExecutor(1, java.util.concurrent.TimeUnit.SECONDS).execute(() -> {
-            if (BottyMod.serverInstance != null && client.isCurrentActiveSocket(webSocket)) {
-                BottyMod.serverInstance.execute(() ->
-                        BottyMod.serverInstance.getPlayerList().broadcastSystemMessage(Component.literal("§a[Bot] 连接成功！"), false)
-                );
-            }
-        });
-        sendStartMessage(webSocket);
     }
 
     @Override
