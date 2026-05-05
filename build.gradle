@@ -60,15 +60,27 @@ repositories {
     }
 }
 configurations {
+    bundledLibs
     shade
-    implementation.extendsFrom shade
+    implementation.extendsFrom shade, bundledLibs
 }
 
 dependencies {
+    bundledLibs 'javazoom:jlayer:1.0.1'
     implementation 'javazoom:jlayer:1.0.1'
-    runtimeOnly 'javazoom:jlayer:1.0.1'
     jarJar(implementation('javazoom:jlayer:1.0.1'))
 }
+
+def unpackedJlayerDir = layout.buildDirectory.dir("generated/jlayer-classes")
+tasks.register('unpackJlayer', Copy) {
+    from {
+        configurations.bundledLibs.collect { zipTree(it) }
+    }
+    include 'javazoom/jl/**'
+    into unpackedJlayerDir
+}
+sourceSets.main.output.dir(unpackedJlayerDir, builtBy: tasks.named('unpackJlayer'))
+tasks.named('classes').configure { dependsOn(tasks.named('unpackJlayer')) }
 
 tasks.named('shadowJar', com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar).configure {
     archiveClassifier = ''
