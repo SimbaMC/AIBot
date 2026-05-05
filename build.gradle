@@ -66,8 +66,7 @@ configurations {
 
 dependencies {
     implementation 'javazoom:jlayer:1.0.1'
-    shade 'javazoom:jlayer:1.0.1'
-    runtimeOnly 'javazoom:jlayer:1.0.1'
+    jarJar 'javazoom:jlayer:1.0.1'
 }
 
 tasks.named('shadowJar', com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar).configure {
