@@ -3,7 +3,6 @@ package com.bot.aibot.client;
 import com.bot.aibot.API.QrCode;
 import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.network.PacketHandler;
-import com.bot.aibot.network.packet.C2SMusicActionPacket;
 import com.bot.aibot.network.packet.C2SReportMusicPacket;
 import com.bot.aibot.utils.NeteaseApi;
 import com.bot.aibot.utils.SongInfo;
@@ -216,11 +215,11 @@ public class MusicPlayerScreen extends Screen {
         int bY = topPos + WINDOW_HEIGHT - 30;
         this.btnPlayPrev = new FlatButton(leftPos + 10, bY, 20, 20, "|<", b -> trySwitchSong(false, false));
         this.addRenderableWidget(this.btnPlayPrev);
-        this.btnToggle = new FlatButton(leftPos + 34, bY, 24, 20, "||", b -> PacketHandler.sendToServer(new C2SMusicActionPacket(1)));
+        this.btnToggle = new FlatButton(leftPos + 34, bY, 24, 20, "||", b -> ClientMusicManager.togglePause());
         this.addRenderableWidget(this.btnToggle);
         this.btnPlayNext = new FlatButton(leftPos + 62, bY, 20, 20, ">|", b -> trySwitchSong(true, false));
         this.addRenderableWidget(this.btnPlayNext);
-        this.btnStop = new FlatButton(leftPos + 86, bY, 20, 20, "■", b -> PacketHandler.sendToServer(new C2SMusicActionPacket(0)));
+        this.btnStop = new FlatButton(leftPos + 86, bY, 20, 20, "■", b -> ClientMusicManager.stop());
         this.addRenderableWidget(this.btnStop);
 
         this.btnLoopMode = new FlatButton(leftPos + 115, bY, 25, 20, currentPlaybackMode.icon, b -> {
