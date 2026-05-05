@@ -223,14 +223,6 @@ public class ChineseUtils {
                 return component.getString(); // 格式化失败回退
             }
         }
-        // ... 其他部分保持不变 (LiteralContents, Siblings) ...
-        StringBuilder sb = new StringBuilder();
-        if (component.getContents() instanceof LiteralContents literal) {
-            sb.append(literal.text());
-        }
-        for (Component sibling : component.getSiblings()) {
-            sb.append(translate(sibling));
-        }
-        return sb.toString();
+        return component.getString();
     }
 }
