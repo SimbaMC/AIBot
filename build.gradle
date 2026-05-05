@@ -23,6 +23,7 @@ minecraft {
 
     runs {
         configureEach {
+<<<<<<< HEAD
             workingDirectory project.file('run')
             property 'forge.logging.markers', 'REGISTRIES'
             property 'forge.logging.console.level', 'debug'
@@ -31,6 +32,12 @@ minecraft {
                     source sourceSets.main
                 }
             }
+=======
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            systemProperty 'forge.logging.console.level', 'debug'
+            jvmArgument '-Dfile.encoding=UTF-8'
+            additionalRuntimeClasspath.from(configurations.libraries)
+>>>>>>> 19998e6 (fix: add external library runtime classpath for runs and log netease restore with logger)
         }
 
         client {
