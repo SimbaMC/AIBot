@@ -18,9 +18,13 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @Mod("aibot")
 public class BottyMod {
+
+    private static final Logger LOGGER = LogManager.getLogger();
 
     public static MinecraftServer serverInstance;
 
@@ -44,7 +48,7 @@ public class BottyMod {
 
     private void doClientStuff(final FMLClientSetupEvent event) {
         event.enqueueWork(() -> {
-            System.out.println(">>> [Bot] Client Setup...");
+            LOGGER.info(">>> [Bot] Client Setup...");
             NeteaseApi.loadCookies();
         });
     }
@@ -53,7 +57,7 @@ public class BottyMod {
     public void onServerStarting(ServerStartingEvent event) {
         serverInstance = event.getServer();
         ChineseUtils.load();
-        System.out.println(">>> [Bot] Starting Network...");
+        LOGGER.info(">>> [Bot] Starting Network...");
         BotClient.getInstance().connect();
     }
 
