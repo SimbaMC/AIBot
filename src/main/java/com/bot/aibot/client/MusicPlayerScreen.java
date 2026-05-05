@@ -604,7 +604,7 @@ public class MusicPlayerScreen extends Screen {
     class SongListWidget extends ObjectSelectionList<SongListWidget.SongEntry> {
         public boolean visible = true;
         public SongListWidget(Minecraft mc, int width, int height, int top) {
-            super(mc, width, height, top, top + height, 24);
+            super(mc, width, height, top, top + height, 20);
         }
         @Override public boolean mouseClicked(double mx, double my, int btn) {
             if (!this.visible) return false;
@@ -663,7 +663,7 @@ public class MusicPlayerScreen extends Screen {
     class PlaylistListWidget extends ObjectSelectionList<PlaylistListWidget.PlaylistEntry> {
         public boolean visible = false;
         public PlaylistListWidget(Minecraft mc, int width, int height, int top) {
-            super(mc, width, height, top, top + height, 24);
+            super(mc, width, height, top, top + height, 20);
         }
         @Override public boolean mouseClicked(double mx, double my, int btn) {
             if (!this.visible) return false;
