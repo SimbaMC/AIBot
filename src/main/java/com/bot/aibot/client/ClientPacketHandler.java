@@ -1,8 +1,8 @@
 package com.bot.aibot.client;
 
 import com.bot.aibot.network.PacketHandler;
-import com.bot.aibot.network.packet.C2SReportMusicPacket;
-import com.bot.aibot.network.packet.S2CMusicCommandPacket; // 引入新包的枚举
+import com.bot.aibot.network.payload.C2SReportMusicPayload;
+import com.bot.aibot.network.payload.S2CMusicCommandPayload;
 import com.bot.aibot.utils.NeteaseApi;
 import com.bot.aibot.utils.SongInfo;
 import com.google.gson.JsonArray;
@@ -16,19 +16,19 @@ import java.util.Random;
 
 public class ClientPacketHandler {
 
-    public static void handle(S2CMusicCommandPacket.Action action, String data, long extra) {
+    public static void handle(S2CMusicCommandPayload.Action action, String data, long extra) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
 
         // 1. 停止指令
-        if (action == S2CMusicCommandPacket.Action.STOP) {
+        if (action == S2CMusicCommandPayload.Action.STOP) {
             ClientMusicManager.stop();
             mc.player.displayClientMessage(Component.literal("§e[Bot] 音乐已停止。"), true);
             return;
         }
 
         // 2. 直接播放指令 (URL)
-        if (action == S2CMusicCommandPacket.Action.PLAY_Direct) {
+        if (action == S2CMusicCommandPayload.Action.PLAY_Direct) {
             String url = data;
             // extra 此时作为 duration
             if (!url.equals(MusicPlayerScreen.EXPECTED_URL)) {
@@ -37,21 +37,21 @@ public class ClientPacketHandler {
             ClientMusicManager.play(url, "正在播放...", extra);
             return;
         }
-        if (action == S2CMusicCommandPacket.Action.RESET_COOLDOWN) {
+        if (action == S2CMusicCommandPayload.Action.RESET_COOLDOWN) {
             MusicPlayerScreen.resetCooldown();
             mc.execute(() -> mc.player.displayClientMessage(Component.literal("§a[Bot] 广播模式冷却已强制重置！"), true));
             return;
         }
 
         // 3. 打开 GUI
-        if (action == S2CMusicCommandPacket.Action.OPEN_GUI) {
+        if (action == S2CMusicCommandPayload.Action.OPEN_GUI) {
             mc.execute(() -> mc.setScreen(new MusicPlayerScreen()));
             return;
         }
 
         new Thread(() -> {
             // 4. 搜索指令
-            if (action == S2CMusicCommandPacket.Action.SEARCH_AND_PLAY) {
+            if (action == S2CMusicCommandPayload.Action.SEARCH_AND_PLAY) {
                 String keyword = data;
                 boolean isGlobal = (extra == 1); // 约定: extra=1 代表全服广播
 
@@ -67,7 +67,7 @@ public class ClientPacketHandler {
             }
 
             // 5. 【新功能】随机播放红心歌单
-            if (action == S2CMusicCommandPacket.Action.PLAY_MY_LIKE) {
+            if (action == S2CMusicCommandPayload.Action.PLAY_MY_LIKE) {
                 long uid = NeteaseApi.getMyUid();
                 if (uid == 0) {
                     mc.execute(() -> mc.player.sendSystemMessage(Component.literal("§c[Bot] 需要登录网易云才能播放红心歌单。请使用 /bot login")));
@@ -118,6 +118,6 @@ public class ClientPacketHandler {
         }
 
         // 发送给服务端，请求全服/个人播放
-        PacketHandler.sendToServer(new C2SReportMusicPacket(url, songName, duration, isGlobal));
+        PacketHandler.sendToServer(new C2SReportMusicPayload(url, songName, duration, isGlobal));
     }
 }

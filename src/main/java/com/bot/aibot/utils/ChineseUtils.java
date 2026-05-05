@@ -5,12 +5,12 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.contents.LiteralContents;
+import net.minecraft.network.chat.contents.PlainTextContents;
 import net.minecraft.network.chat.contents.TranslatableContents;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.loading.FMLPaths;
-import net.minecraftforge.forgespi.language.IModInfo;
-import net.minecraftforge.forgespi.locating.IModFile;
+import net.neoforged.fml.ModList;
+import net.neoforged.fml.loading.FMLPaths;
+import net.neoforged.neoforgespi.language.IModInfo;
+import net.neoforged.neoforgespi.locating.IModFile;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -221,7 +221,7 @@ public class ChineseUtils {
         }
         // ... 其他部分保持不变 (LiteralContents, Siblings) ...
         StringBuilder sb = new StringBuilder();
-        if (component.getContents() instanceof LiteralContents literal) {
+        if (component.getContents() instanceof PlainTextContents.LiteralContents literal) {
             sb.append(literal.text());
         }
         for (Component sibling : component.getSiblings()) {

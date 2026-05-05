@@ -3,8 +3,8 @@ package com.bot.aibot.client;
 import com.bot.aibot.API.QrCode;
 import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.network.PacketHandler;
-import com.bot.aibot.network.packet.C2SMusicActionPacket;
-import com.bot.aibot.network.packet.C2SReportMusicPacket;
+import com.bot.aibot.network.payload.C2SMusicActionPayload;
+import com.bot.aibot.network.payload.C2SReportMusicPayload;
 import com.bot.aibot.utils.NeteaseApi;
 import com.bot.aibot.utils.SongInfo;
 import com.google.gson.JsonArray;
@@ -131,14 +131,14 @@ public class MusicPlayerScreen extends Screen {
 
     // 强制手动分发滚轮事件 (解决歌单列表滚动问题)
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         if (this.playlistList != null && this.playlistList.visible) {
-            if (this.playlistList.mouseScrolled(mouseX, mouseY, delta)) return true;
+            if (this.playlistList.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         }
         if (this.songList != null && this.songList.visible) {
-            if (this.songList.mouseScrolled(mouseX, mouseY, delta)) return true;
+            if (this.songList.mouseScrolled(mouseX, mouseY, scrollX, scrollY)) return true;
         }
-        return super.mouseScrolled(mouseX, mouseY, delta);
+        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
 
     private void trySwitchSong(boolean isNext, boolean isAuto) {
@@ -216,11 +216,11 @@ public class MusicPlayerScreen extends Screen {
         int bY = topPos + WINDOW_HEIGHT - 30;
         this.btnPlayPrev = new FlatButton(leftPos + 10, bY, 20, 20, "|<", b -> trySwitchSong(false, false));
         this.addRenderableWidget(this.btnPlayPrev);
-        this.btnToggle = new FlatButton(leftPos + 34, bY, 24, 20, "||", b -> PacketHandler.sendToServer(new C2SMusicActionPacket(1)));
+        this.btnToggle = new FlatButton(leftPos + 34, bY, 24, 20, "||", b -> PacketHandler.sendToServer(new C2SMusicActionPayload(1)));
         this.addRenderableWidget(this.btnToggle);
         this.btnPlayNext = new FlatButton(leftPos + 62, bY, 20, 20, ">|", b -> trySwitchSong(true, false));
         this.addRenderableWidget(this.btnPlayNext);
-        this.btnStop = new FlatButton(leftPos + 86, bY, 20, 20, "■", b -> PacketHandler.sendToServer(new C2SMusicActionPacket(0)));
+        this.btnStop = new FlatButton(leftPos + 86, bY, 20, 20, "■", b -> PacketHandler.sendToServer(new C2SMusicActionPayload(0)));
         this.addRenderableWidget(this.btnStop);
 
         this.btnLoopMode = new FlatButton(leftPos + 115, bY, 25, 20, currentPlaybackMode.icon, b -> {
@@ -262,11 +262,11 @@ public class MusicPlayerScreen extends Screen {
         int listH = WINDOW_HEIGHT - 35 - 40 - 65;
 
         this.songList = new SongListWidget(this.minecraft, WINDOW_WIDTH - 20, listH, listY);
-        this.songList.setLeftPos(leftPos + 10);
+        this.songList.setX(leftPos + 10);
         this.addWidget(this.songList);
 
         this.playlistList = new PlaylistListWidget(this.minecraft, WINDOW_WIDTH - 20, listH, listY);
-        this.playlistList.setLeftPos(leftPos + 10);
+        this.playlistList.setX(leftPos + 10);
         this.addWidget(this.playlistList);
 
         if (CACHED_CURRENT_LIST != null) this.songList.refreshList(CACHED_CURRENT_LIST);
@@ -307,7 +307,7 @@ public class MusicPlayerScreen extends Screen {
             EXPECTED_URL = url;
             ClientMusicManager.onTrackFinishedCallback = () -> trySwitchSong(true, true);
             if (performBroadcast) {
-                PacketHandler.sendToServer(new C2SReportMusicPacket(url, song.name + " - " + song.artist, song.duration, true));
+                PacketHandler.sendToServer(new C2SReportMusicPayload(url, song.name + " - " + song.artist, song.duration, true));
             } else {
                 Minecraft.getInstance().execute(() -> ClientMusicManager.play(url, song.name + " - " + song.artist, song.duration));
             }
@@ -494,7 +494,7 @@ public class MusicPlayerScreen extends Screen {
     // === 渲染与输入 ===
     @Override
     public void render(GuiGraphics g, int mx, int my, float pt) {
-        this.renderBackground(g);
+        this.renderBackground(g, mx, my, pt);
         g.fill(leftPos, topPos, leftPos + WINDOW_WIDTH, topPos + WINDOW_HEIGHT, COLOR_BG);
         g.fill(leftPos, topPos, leftPos + WINDOW_WIDTH, topPos + 30, COLOR_HEADER);
         g.drawString(this.font, "AiBot 云音乐", leftPos + 10, topPos + 10, COLOR_TEXT_ACTIVE, false);
@@ -593,15 +593,15 @@ public class MusicPlayerScreen extends Screen {
     class SongListWidget extends ObjectSelectionList<SongListWidget.SongEntry> {
         public boolean visible = true;
         public SongListWidget(Minecraft mc, int width, int height, int top) {
-            super(mc, width, height, top, top + height, 24);
+            super(mc, width, height, top, 24);
         }
         @Override public boolean mouseClicked(double mx, double my, int btn) {
             if (!this.visible) return false;
             return super.mouseClicked(mx, my, btn);
         }
-        @Override public boolean mouseScrolled(double mx, double my, double delta) {
+        @Override public boolean mouseScrolled(double mx, double my, double scrollX, double scrollY) {
             if (!this.visible) return false;
-            return super.mouseScrolled(mx, my, delta);
+            return super.mouseScrolled(mx, my, scrollX, scrollY);
         }
         @Override public boolean mouseDragged(double mx, double my, int btn, double dx, double dy) {
             if (!this.visible) return false;
@@ -611,15 +611,12 @@ public class MusicPlayerScreen extends Screen {
             this.clearEntries();
             for (SongInfo s : songs) this.addEntry(new SongEntry(s));
         }
-        @Override protected int getScrollbarPosition() { return getLeft() + getRowWidth() + 6; }
+        @Override protected int getScrollbarPosition() { return getX() + getRowWidth() + 6; }
         @Override public int getRowWidth() { return width - 10; }
-        @Override public void render(@NotNull GuiGraphics g, int mx, int my, float pt) {
+        @Override public void renderWidget(@NotNull GuiGraphics g, int mx, int my, float pt) {
             if (!this.visible) return;
-            g.enableScissor(getLeft(), getTop(), getRight(), getBottom());
-            super.render(g, mx, my, pt);
-            g.disableScissor();
+            super.renderWidget(g, mx, my, pt);
         }
-        @Override protected void renderBackground(@NotNull GuiGraphics g) {}
         @Override protected void renderDecorations(@NotNull GuiGraphics g, int mx, int my) {}
 
         public class SongEntry extends ObjectSelectionList.Entry<SongEntry> {
@@ -652,15 +649,15 @@ public class MusicPlayerScreen extends Screen {
     class PlaylistListWidget extends ObjectSelectionList<PlaylistListWidget.PlaylistEntry> {
         public boolean visible = false;
         public PlaylistListWidget(Minecraft mc, int width, int height, int top) {
-            super(mc, width, height, top, top + height, 24);
+            super(mc, width, height, top, 24);
         }
         @Override public boolean mouseClicked(double mx, double my, int btn) {
             if (!this.visible) return false;
             return super.mouseClicked(mx, my, btn);
         }
-        @Override public boolean mouseScrolled(double mx, double my, double delta) {
+        @Override public boolean mouseScrolled(double mx, double my, double scrollX, double scrollY) {
             if (!this.visible) return false;
-            return super.mouseScrolled(mx, my, delta);
+            return super.mouseScrolled(mx, my, scrollX, scrollY);
         }
         @Override public boolean mouseDragged(double mx, double my, int btn, double dx, double dy) {
             if (!this.visible) return false;
@@ -670,15 +667,12 @@ public class MusicPlayerScreen extends Screen {
             this.clearEntries();
             for (PlaylistInfo p : playlists) this.addEntry(new PlaylistEntry(p));
         }
-        @Override protected int getScrollbarPosition() { return getLeft() + getRowWidth() + 6; }
+        @Override protected int getScrollbarPosition() { return getX() + getRowWidth() + 6; }
         @Override public int getRowWidth() { return width - 10; }
-        @Override public void render(@NotNull GuiGraphics g, int mx, int my, float pt) {
+        @Override public void renderWidget(@NotNull GuiGraphics g, int mx, int my, float pt) {
             if (!this.visible) return;
-            g.enableScissor(getLeft(), getTop(), getRight(), getBottom());
-            super.render(g, mx, my, pt);
-            g.disableScissor();
+            super.renderWidget(g, mx, my, pt);
         }
-        @Override protected void renderBackground(@NotNull GuiGraphics g) {}
         @Override protected void renderDecorations(@NotNull GuiGraphics g, int mx, int my) {}
 
         public class PlaylistEntry extends ObjectSelectionList.Entry<PlaylistEntry> {

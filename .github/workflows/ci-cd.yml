@@ -4,8 +4,13 @@ on:
   push:
     branches:
       - main
+      - neoforge
     tags:
       - '*'
+  pull_request:
+    branches:
+      - main
+      - neoforge
 
 permissions:
   contents: write
@@ -22,7 +27,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
           cache: gradle
 
       - name: Build mod JAR

@@ -4,12 +4,12 @@ import com.bot.aibot.binding.QQBindingManager;
 import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.network.BotClient;
 import com.bot.aibot.network.PacketHandler;
-import com.bot.aibot.network.packet.S2CMusicCommandPacket;
+import com.bot.aibot.network.payload.S2CMusicCommandPayload;
 import com.mojang.brigadier.arguments.LongArgumentType;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
-import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
 
 public class ModCommands {
     @SubscribeEvent
@@ -34,7 +34,7 @@ public class ModCommands {
                                 .executes(context -> {
                                     context.getSource().sendSuccess(() -> Component.literal("§b[Bot] 请在弹出的窗口中扫码登录网易云..."), false);
                                     PacketHandler.sendToPlayer(
-                                            new S2CMusicCommandPacket(S2CMusicCommandPacket.Action.OPEN_GUI),
+                                            new S2CMusicCommandPayload(S2CMusicCommandPayload.Action.OPEN_GUI),
                                             context.getSource().getPlayerOrException()
                                     );
                                     return 1;
@@ -45,7 +45,7 @@ public class ModCommands {
                                 .executes(context -> {
                                     // 发送 STOP 指令
                                     PacketHandler.sendToPlayer(
-                                            new S2CMusicCommandPacket(S2CMusicCommandPacket.Action.STOP),
+                                            new S2CMusicCommandPayload(S2CMusicCommandPayload.Action.STOP),
                                             context.getSource().getPlayerOrException()
                                     );
                                     return 1;
@@ -56,7 +56,7 @@ public class ModCommands {
                                 .executes(context -> {
                                     // OPEN_GUI 指令
                                     PacketHandler.sendToPlayer(
-                                            new S2CMusicCommandPacket(S2CMusicCommandPacket.Action.OPEN_GUI),
+                                            new S2CMusicCommandPayload(S2CMusicCommandPayload.Action.OPEN_GUI),
                                             context.getSource().getPlayerOrException()
                                     );
                                     return 1;
@@ -67,7 +67,7 @@ public class ModCommands {
                                 .executes(context -> {
                                     // 发送指令包给执行该命令的玩家
                                     PacketHandler.sendToPlayer(
-                                            new S2CMusicCommandPacket(S2CMusicCommandPacket.Action.RESET_COOLDOWN),
+                                            new S2CMusicCommandPayload(S2CMusicCommandPayload.Action.RESET_COOLDOWN),
                                             context.getSource().getPlayerOrException()
                                     );
                                     // 服务端聊天栏反馈

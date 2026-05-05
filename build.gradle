@@ -2,9 +2,8 @@ plugins {
     id 'eclipse'
     id 'idea'
     id 'maven-publish'
-    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
-    id 'com.github.johnrengelman.shadow' version '8.1.1'
-    id 'org.spongepowered.mixin' version '0.7.+'
+    id 'net.neoforged.gradle.userdev' version '7.0.165'
+    id 'com.gradleup.shadow' version '8.3.10'
 }
 
 version = mod_version
@@ -14,109 +13,68 @@ base {
     archivesName = mod_id
 }
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+// Minecraft 1.21.1 requires Java 21
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
-minecraft {
-    mappings channel: mapping_channel, version: mapping_version
-    copyIdeResources = true
-
-
-    runs {
-        configureEach {
-            workingDirectory project.file('run')
-            property 'forge.logging.markers', 'REGISTRIES'
-            property 'forge.logging.console.level', 'debug'
-            mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
-            }
-        }
-
-        client {
-            property 'forge.enabledGameTestNamespaces', mod_id
-            property 'mixin.env.remapRefMap', 'true'
-            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
-            arg "-mixin.config=aibot.mixins.json"
-
-            property 'forge.enabledGameTestNamespaces', mod_id
-        }
-
-        server {
-            property 'forge.enabledGameTestNamespaces', mod_id
-            args '--nogui'
-            property 'mixin.env.remapRefMap', 'true'
-            property 'mixin.env.refMapRemappingFile', "${projectDir}/build/createSrgToMcp/output.srg"
-            arg "-mixin.config=aibot.mixins.json"
-
-            property 'forge.enabledGameTestNamespaces', mod_id
-        }
+// Default run configurations.
+runs {
+    configureEach {
+        workingDirectory project.file('run')
+        modSource project.sourceSets.main
     }
-}
-mixin {
-    add sourceSets.main, "aibot.refmap.json"
-    config "aibot.mixins.json"
+
+    client {}
+
+    server {
+        argument '--nogui'
+    }
 }
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
     mavenCentral()
-    maven {
-        url "https://www.cursemaven.com"
-        content { includeGroup "curse.maven" }
-    }
 }
+
 configurations {
     shade
     implementation.extendsFrom shade
 }
 
 dependencies {
-    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
-
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    implementation "net.neoforged:neoforge:${neo_version}"
 
     shade 'javazoom:jlayer:1.0.1'
-    minecraftLibrary 'javazoom:jlayer:1.0.1'
+}
 
-}
-reobf {
-    shadowJar {} // 【关键】这行代码会生成 reobfShadowJar 任务
-}
 tasks.named('shadowJar', com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar).configure {
-    archiveClassifier = '' // 覆盖默认的 jar，直接生成可用的 jar
+    archiveClassifier = ''
 
-    // 包含所有 implementation 依赖
     configurations = [project.configurations.shade]
 
-    // 【强烈建议】重定位包名，防止和其他也用了 jlayer 的模组冲突
     relocate 'javazoom.jl', 'com.bot.aibot.shadow.javazoom.jl'
 
-    // 排除不必要的文件
     exclude 'META-INF/maven/**'
     exclude 'META-INF/LICENSE*'
 
-    // 必须合并 Service 文件（如果有的话）
     mergeServiceFiles()
 }
 
 tasks.named('processResources', ProcessResources).configure {
     var replaceProperties = [
-            minecraft_version: minecraft_version, minecraft_version_range: minecraft_version_range,
-            forge_version: forge_version, forge_version_range: forge_version_range,
-            loader_version_range: loader_version_range,
-            mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
-            mod_authors: mod_authors, mod_description: mod_description,
+            minecraft_version      : minecraft_version, minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version, neo_version_range: neo_version_range,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
+            mod_authors            : mod_authors, mod_description: mod_description,
     ]
     inputs.properties replaceProperties
-    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+    filesMatching(['META-INF/neoforge.mods.toml', 'pack.mcmeta']) {
         expand replaceProperties + [project: project]
     }
 }
 
 tasks.named('jar', Jar).configure {
-    archiveClassifier = 'slim'
     manifest {
         attributes([
                 'Specification-Title'     : mod_id,
@@ -125,11 +83,12 @@ tasks.named('jar', Jar).configure {
                 'Implementation-Title'    : project.name,
                 'Implementation-Version'  : project.jar.archiveVersion,
                 'Implementation-Vendor'   : mod_authors,
-                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:ss?Z")
+                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
+                'MixinConfigs'            : 'aibot.mixins.json',
         ])
     }
-    finalizedBy 'reobfJar'
 }
+
 tasks.build.dependsOn tasks.shadowJar
 
 tasks.withType(JavaCompile).configureEach {

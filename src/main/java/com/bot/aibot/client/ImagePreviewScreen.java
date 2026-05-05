@@ -19,7 +19,7 @@ public class ImagePreviewScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mx, int my, float pt) {
-        this.renderBackground(g);
+        this.renderBackground(g, mx, my, pt);
 
         // 绘制标题
         g.drawCenteredString(this.font, this.title, this.width / 2, 20, 0xFFFFFF);
