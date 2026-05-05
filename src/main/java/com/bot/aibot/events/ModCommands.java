@@ -4,6 +4,7 @@ import com.bot.aibot.binding.QQBindingManager;
 import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.network.BotClient;
 import com.bot.aibot.network.PacketHandler;
+import com.bot.aibot.network.packet.C2SReportMusicPacket;
 import com.bot.aibot.network.packet.S2CMusicCommandPacket;
 import com.mojang.brigadier.arguments.LongArgumentType;
 import net.minecraft.commands.Commands;
@@ -65,6 +66,7 @@ public class ModCommands {
                         .then(Commands.literal("cd")
                                 .requires(source -> source.hasPermission(2)) // 只有 OP (权限等级2) 能用
                                 .executes(context -> {
+                                    C2SReportMusicPacket.resetGlobalCooldown();
                                     // 发送指令包给执行该命令的玩家
                                     PacketHandler.sendToPlayer(
                                             new S2CMusicCommandPacket(S2CMusicCommandPacket.Action.RESET_COOLDOWN),

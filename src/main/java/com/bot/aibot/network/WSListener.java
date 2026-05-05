@@ -13,9 +13,12 @@ import net.minecraft.network.chat.Style;
 
 import java.net.http.WebSocket;
 import java.nio.ByteBuffer;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
@@ -25,7 +28,7 @@ public class WSListener implements WebSocket.Listener {
 
     private static final Logger LOGGER = LogManager.getLogger();
     private final StringBuilder buffer = new StringBuilder();
-    private static final Pattern CQ_PATTERN = Pattern.compile("\\[CQ:(image|face),(.*?)\\]");
+    private static final Pattern CQ_PATTERN = Pattern.compile("\\[CQ:(image|face|mface|marketface|bface),(.*?)\\]");
     private static final int MAX_BUFFER_SIZE = 1024 * 1024;
 
     @Override
@@ -158,30 +161,37 @@ public class WSListener implements WebSocket.Listener {
                     int color = 0x00AAAA;
 
                     if ("image".equals(type)) {
-                        targetUrl = extractValue(params, "url");
+                        targetUrl = normalizeCqValue(extractValue(params, "url"));
                         displayText = "§b[📷图片]§r";
                     } else if ("face".equals(type)) {
-                        String faceId = extractValue(params, "id");
-                        if (faceId == null) faceId = extractValueSimple(params, "id");
+                        String faceId = normalizeCqValue(extractValue(params, "id"));
+                        if (faceId == null) faceId = normalizeCqValue(extractValueSimple(params, "id"));
 
                         if (faceId != null) {
                             String template = BotConfig.SERVER.qqFaceApi.get();
                             try {
-                                targetUrl = String.format(template, faceId, faceId);
+                                targetUrl = normalizeCqValue(String.format(template, faceId, faceId));
                             } catch (Exception e) {
-                                targetUrl = String.format(template, faceId);
+                                targetUrl = normalizeCqValue(String.format(template, faceId));
                             }
                             displayText = "§e[😀表情]§r";
                             color = 0xFFAA00;
                         }
+                    } else if ("mface".equals(type) || "marketface".equals(type) || "bface".equals(type)) {
+                        targetUrl = normalizeCqValue(extractValue(params, "url"));
+                        if (targetUrl == null) targetUrl = normalizeCqValue(extractValue(params, "file"));
+                        displayText = "§d[表情包]§r";
+                        color = 0xFF55FF;
                     }
 
                     if (targetUrl != null && !targetUrl.isEmpty()) {
+                        final String marker = "aibot:image:" + targetUrl;
                         MutableComponent linkBtn = Component.literal(displayText);
                         linkBtn.setStyle(Style.EMPTY
                                 .withColor(color)
                                 .withUnderlined(true)
                                 .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, targetUrl))
+                                .withInsertion(marker)
                                 .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
                                         Component.literal("§7点击放大 / 悬停预览")))
                         );
@@ -219,9 +229,10 @@ public class WSListener implements WebSocket.Listener {
                 }
                 String defaultNode = com.bot.aibot.config.BotConfig.SERVER.defaultNodeName.get();
 
-                double mspt = 50.0;
-                String tpsStr = "20.0";
-                String msptStr = "50.0";
+                double mspt = com.bot.aibot.BottyMod.serverInstance.getAverageTickTimeNanos() / 1_000_000.0D;
+                double tps = Math.min(20.0D, 1000.0D / Math.max(mspt, 0.001D));
+                String tpsStr = String.format(java.util.Locale.ROOT, "%.1f", tps);
+                String msptStr = String.format(java.util.Locale.ROOT, "%.1f", mspt);
 
                 java.util.List<net.minecraft.server.level.ServerPlayer> players = com.bot.aibot.BottyMod.serverInstance.getPlayerList().getPlayers();
                 java.util.List<String> playerDetails = new java.util.ArrayList<>();
@@ -237,13 +248,23 @@ public class WSListener implements WebSocket.Listener {
 
                     String nodeName = defaultNode;
                     try {
-                        String fullAddress = "unknown";
-                        if (fullAddress.startsWith("/")) {
-                            fullAddress = fullAddress.substring(1);
+                        SocketAddress remoteAddress = player.connection.getRemoteAddress();
+                        String ipOnly;
+                        if (remoteAddress instanceof InetSocketAddress inetAddress) {
+                            ipOnly = inetAddress.getAddress() != null
+                                    ? inetAddress.getAddress().getHostAddress()
+                                    : inetAddress.getHostString();
+                        } else {
+                            String fullAddress = String.valueOf(remoteAddress);
+                            if (fullAddress.startsWith("/")) {
+                                fullAddress = fullAddress.substring(1);
+                            }
+                            ipOnly = fullAddress.split(":")[0];
                         }
-                        String ipOnly = fullAddress.split(":")[0];
 
-                        nodeName = ipMap.getOrDefault(ipOnly, defaultNode);
+                        if (ipOnly != null && !ipOnly.isBlank()) {
+                            nodeName = ipMap.getOrDefault(ipOnly, defaultNode);
+                        }
                     } catch (Exception e) {
                     }
 
@@ -265,7 +286,7 @@ public class WSListener implements WebSocket.Listener {
                 String msg = String.format("[%s] 📊 服务器状态\n👥 在线: %d/%d\n⚡ TPS: %s (MSPT: %sms)\n📶 平均延迟: %dms\n\n🎮 在线玩家 : %s",
                         prefix, online, max, tpsStr, msptStr, avgPing, playerStr);
 
-                com.bot.aibot.network.BotClient.getInstance().sendMessageToQQ(msg);
+                com.bot.aibot.network.BotClient.getInstance().sendMessageToQQ(groupId, msg);
 
             } catch (Exception e) {
                 LOGGER.error(">>> [Bot] 状态指令执行异常: " + e.getMessage());
@@ -276,7 +297,7 @@ public class WSListener implements WebSocket.Listener {
 
     private String extractValue(String params, String key) {
         try {
-            Pattern p = Pattern.compile(key + "=([^,\\]\\s]+)");
+            Pattern p = Pattern.compile("(?:^|,)" + Pattern.quote(key) + "=([^,\\]]+)");
             Matcher m = p.matcher(params);
             if (m.find()) return m.group(1).trim();
         } catch (Exception e) {}
@@ -291,6 +312,19 @@ public class WSListener implements WebSocket.Listener {
             }
         }
         return null;
+    }
+
+    private String normalizeCqValue(String value) {
+        if (value == null || value.isBlank()) return null;
+        return value.trim()
+                .replace("&amp;", "&")
+                .replace("&#44;", ",")
+                .replace("&#91;", "[")
+                .replace("&#93;", "]")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"")
+                .replace("&#39;", "'");
     }
 
     private void sendStartMessage(WebSocket webSocket) {

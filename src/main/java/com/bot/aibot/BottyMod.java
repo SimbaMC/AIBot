@@ -40,7 +40,7 @@ public class BottyMod {
         NeoForge.EVENT_BUS.register(new AdvancementEvents());
 
         // 注册网络包
-        PacketHandler.register();
+        modBus.addListener(PacketHandler::register);
 
         // 注册客户端初始化事件
         modBus.addListener(this::doClientStuff);

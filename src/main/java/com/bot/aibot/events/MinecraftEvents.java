@@ -30,7 +30,7 @@ public class MinecraftEvents {
                 .replace("%msg%", message);
     }
 
-    private static String avoidDuplicatedPlayerPrefix(String template, String playerName, String message) {
+    public static String avoidDuplicatedPlayerPrefix(String template, String playerName, String message) {
         if (template.contains("%player%") && message != null && message.startsWith(playerName)) {
             return message.substring(playerName.length());
         }
@@ -122,6 +122,7 @@ public class MinecraftEvents {
         String localTranslatedMsg = ChineseUtils.translate(event.getSource().getLocalizedDeathMessage(player));
 
         String mode = BotConfig.SERVER.aiDeathMode.get();
+        mode = mode == null ? "OFF" : mode.trim().toUpperCase(java.util.Locale.ROOT);
         String finalMessage = localTranslatedMsg;
         boolean shouldUseAI = false;
 
@@ -142,7 +143,7 @@ public class MinecraftEvents {
                     finalMessage = cached;
                 }
             } else {
-                LLMClient.translateDeath(player, abstractKey);
+                LLMClient.translateDeath(player, abstractKey, localTranslatedMsg);
                 return;
             }
         }

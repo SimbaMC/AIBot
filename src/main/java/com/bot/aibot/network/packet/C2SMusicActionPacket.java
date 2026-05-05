@@ -1,26 +1,37 @@
 package com.bot.aibot.network.packet;
 
-import com.bot.aibot.network.PacketHandler;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 
-import java.util.function.Supplier;
+public class C2SMusicActionPacket implements CustomPacketPayload {
+    public static final Type<C2SMusicActionPacket> TYPE =
+            new Type<>(ResourceLocation.fromNamespaceAndPath("aibot", "music_action"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, C2SMusicActionPacket> STREAM_CODEC =
+            StreamCodec.ofMember(C2SMusicActionPacket::encode, C2SMusicActionPacket::decode);
 
-public class C2SMusicActionPacket {
-    private final int action; // 0: Stop
+    private final int action;
 
     public C2SMusicActionPacket(int action) {
         this.action = action;
     }
 
-    public C2SMusicActionPacket(FriendlyByteBuf buf) {
-        this.action = buf.readInt();
+    private static C2SMusicActionPacket decode(RegistryFriendlyByteBuf buf) {
+        return new C2SMusicActionPacket(buf.readInt());
     }
 
-    public void encode(FriendlyByteBuf buf) {
+    private void encode(RegistryFriendlyByteBuf buf) {
         buf.writeInt(this.action);
     }
 
-    public void handle(Supplier<?> ctx) {
-        // NeoForge payload migration pending
+    public static void handle(C2SMusicActionPacket packet, IPayloadContext context) {
+        // Reserved for future server-side music controls.
+    }
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 }

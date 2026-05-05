@@ -11,7 +11,7 @@ import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 
-@EventBusSubscriber(value = Dist.CLIENT, bus = EventBusSubscriber.Bus.GAME)
+@EventBusSubscriber(modid = "aibot", value = Dist.CLIENT, bus = EventBusSubscriber.Bus.GAME)
 public class ChatImageRenderer {
 
     @SubscribeEvent
@@ -21,8 +21,8 @@ public class ChatImageRenderer {
         Minecraft mc = Minecraft.getInstance();
         Style style = mc.gui.getChat().getClickedComponentStyleAt(event.getMouseX(), event.getMouseY());
 
-        if (isImageStyle(style)) {
-            String url = style.getClickEvent().getValue();
+        String url = getImageUrl(style);
+        if (url != null) {
             renderImagePreview(event.getGuiGraphics(), url, event.getMouseX(), event.getMouseY());
         }
     }
@@ -34,27 +34,54 @@ public class ChatImageRenderer {
         if (event.getButton() != 0) return;
 
         Style style = mc.gui.getChat().getClickedComponentStyleAt(event.getMouseX(), event.getMouseY());
-        if (isImageStyle(style)) {
-            String url = style.getClickEvent().getValue();
+        String url = getImageUrl(style);
+        if (url != null) {
             event.setCanceled(true);
             mc.setScreen(new ImagePreviewScreen(url));
         }
     }
 
-    private static boolean isImageStyle(Style style) {
-        if (style == null || style.getClickEvent() == null) return false;
-        if (style.getClickEvent().getAction() != ClickEvent.Action.OPEN_URL) return false;
+    private static String getImageUrl(Style style) {
+        if (style == null) return null;
+        String insertion = style.getInsertion();
+        if (insertion != null && insertion.startsWith("aibot:image:")) {
+            String markedUrl = insertion.substring("aibot:image:".length());
+            return normalizeUrl(markedUrl);
+        }
+        if (style.getClickEvent() == null) return null;
+        if (style.getClickEvent().getAction() != ClickEvent.Action.OPEN_URL) return null;
         String url = style.getClickEvent().getValue();
-        return url.startsWith("http") && (
-                url.contains("multimedia.nt.qq.com") ||
-                        url.contains("gchat.qpic.cn") ||
-                        url.contains("c2cpic") ||
-                        url.contains("chatimg") ||
-                        url.endsWith(".jpg") ||
-                        url.endsWith(".png") ||
-                        url.endsWith(".gif") || // 加上gif
-                        url.contains("url=")
+        if (url == null) return null;
+        url = normalizeUrl(url);
+        String lower = url.toLowerCase(java.util.Locale.ROOT);
+        boolean isImageUrl = lower.startsWith("http") && (
+                lower.contains("multimedia.nt.qq.com") ||
+                        lower.contains("qq.com.cn/download") ||
+                        lower.contains("gchat.qpic.cn") ||
+                        lower.contains("c2cpic") ||
+                        lower.contains("chatimg") ||
+                        lower.contains("qpic.cn") ||
+                        lower.contains("koishi.js.org/qface") ||
+                        lower.endsWith(".jpg") ||
+                        lower.endsWith(".jpeg") ||
+                        lower.endsWith(".png") ||
+                        lower.endsWith(".gif") ||
+                        lower.endsWith(".webp") ||
+                        lower.contains("url=")
         );
+        return isImageUrl ? url : null;
+    }
+
+    private static String normalizeUrl(String rawUrl) {
+        return rawUrl.trim()
+                .replace("&amp;", "&")
+                .replace("&#44;", ",")
+                .replace("&#91;", "[")
+                .replace("&#93;", "]")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"")
+                .replace("&#39;", "'");
     }
 
     private static void renderImagePreview(net.minecraft.client.gui.GuiGraphics g, String url, int mx, int my) {

@@ -237,15 +237,6 @@ public class MusicPlayerScreen extends Screen {
         this.addRenderableWidget(this.btnLoopMode);
 
         this.btnMode = new FlatButton(leftPos + 145, bY, 50, 20, "", b -> {
-            if (!isBroadcastMode) {
-                long now = System.currentTimeMillis();
-                int cooldownSec = BotConfig.SERVER.broadcastCooldown.get();
-                if (now - lastBroadcastTime < cooldownSec * 1000L) {
-                    long remain = (cooldownSec * 1000L - (now - lastBroadcastTime)) / 1000;
-                    statusText = Component.literal("§c冷却中: " + remain + "s");
-                    return;
-                }
-            }
             isBroadcastMode = !isBroadcastMode;
             CACHED_BROADCAST_MODE = isBroadcastMode;
             updateModeButton();
@@ -293,7 +284,6 @@ public class MusicPlayerScreen extends Screen {
         CACHED_PLAYING_SONG = song;
         final boolean performBroadcast = isBroadcastMode;
         if (isBroadcastMode) {
-            lastBroadcastTime = System.currentTimeMillis();
             isBroadcastMode = false;
             CACHED_BROADCAST_MODE = false;
             updateModeButton();
@@ -311,15 +301,6 @@ public class MusicPlayerScreen extends Screen {
             if (performBroadcast) {
                 LOGGER.info(">>> [Music] 尝试发送广播播放请求: song={}, artist={}, url={}", song.name, song.artist, url);
                 PacketHandler.sendToServer(new C2SReportMusicPacket(url, song.name + " - " + song.artist, song.duration, true));
-                Minecraft.getInstance().execute(() -> {
-                    // 迁移期兜底：网络通道未就绪时，避免“广播模式点击后无响应”
-                    ClientMusicManager.play(url, song.name + " - " + song.artist, song.duration);
-                    if (Minecraft.getInstance().player != null) {
-                        Minecraft.getInstance().player.displayClientMessage(
-                                Component.literal("§e[Bot] 广播通道暂不可用，已回退为本地播放。"), true
-                        );
-                    }
-                });
             } else {
                 Minecraft.getInstance().execute(() -> ClientMusicManager.play(url, song.name + " - " + song.artist, song.duration));
             }

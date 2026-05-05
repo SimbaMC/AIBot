@@ -11,10 +11,12 @@ import net.minecraft.sounds.SoundSource;
 import javax.sound.sampled.*;
 import java.io.BufferedInputStream;
 import java.net.URL;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClientMusicManager {
     private static SourceDataLine line;
     private static Thread musicThread;
+    private static final AtomicInteger PLAYBACK_GENERATION = new AtomicInteger();
 
     // 状态控制
     private static volatile boolean isPlaying = false;
@@ -35,6 +37,7 @@ public class ClientMusicManager {
     public static void play(String url, String name, long duration) {
         // 1. 切换歌曲前，先停止当前播放并恢复其他声音，确保清理干净
         stop();
+        final int generation = PLAYBACK_GENERATION.incrementAndGet();
 
         Minecraft mc = Minecraft.getInstance();
 
@@ -64,6 +67,7 @@ public class ClientMusicManager {
         musicThread = new Thread(() -> {
             boolean finishedNaturally = false;
             long lastSuppressTime = 0;
+            SourceDataLine localLine = null;
 
             try (BufferedInputStream in = new BufferedInputStream(new URL(url).openStream())) {
                 Bitstream bitstream = new Bitstream(in);
@@ -75,18 +79,19 @@ public class ClientMusicManager {
                 // 准备音频格式
                 AudioFormat format = new AudioFormat(header.frequency(), 16, 2, true, false);
                 DataLine.Info info = new DataLine.Info(SourceDataLine.class, format);
-                line = (SourceDataLine) AudioSystem.getLine(info);
-                line.open(format);
-                line.start();
+                localLine = (SourceDataLine) AudioSystem.getLine(info);
+                line = localLine;
+                localLine.open(format);
+                localLine.start();
 
-                while (isPlaying && header != null) {
+                while (isPlaying && generation == PLAYBACK_GENERATION.get() && header != null) {
                     // 暂停控制逻辑
                     if (isPaused) {
-                        if (line != null) line.stop();
-                        while (isPaused && isPlaying) {
+                        if (localLine.isOpen()) localLine.stop();
+                        while (isPaused && isPlaying && generation == PLAYBACK_GENERATION.get()) {
                             try { Thread.sleep(100); } catch (InterruptedException e) { break; }
                         }
-                        if (isPlaying && line != null) line.start();
+                        if (isPlaying && generation == PLAYBACK_GENERATION.get() && localLine.isOpen()) localLine.start();
                     }
 
                     // 解码
@@ -99,33 +104,33 @@ public class ClientMusicManager {
                     }
 
                     // --- 核心音量与压制逻辑 ---
-                    updateVolume(line); // 更新自己
+                    updateVolume(localLine); // 更新自己
 
                     long now = System.currentTimeMillis();
                     if (now - lastSuppressTime > 500) { // 每0.5秒扫一次流氓模组
-                        if (line != null && line.isOpen()) {
-                            suppressOthers(line);
+                        if (localLine.isOpen()) {
+                            suppressOthers(localLine);
                         }
                         lastSuppressTime = now;
                     }
 
-                    if (line != null) {
-                        line.write(outBuffer, 0, outBuffer.length);
+                    if (generation == PLAYBACK_GENERATION.get() && localLine.isOpen()) {
+                        localLine.write(outBuffer, 0, outBuffer.length);
                     }
 
                     bitstream.closeFrame();
                     header = bitstream.readFrame();
                 }
 
-                if (isPlaying) finishedNaturally = true;
+                if (isPlaying && generation == PLAYBACK_GENERATION.get()) finishedNaturally = true;
             } catch (Throwable e) {
                 System.err.println(">>> [AiBot] 播放器线程崩溃: " + e.getMessage());
                 e.printStackTrace();
             } finally {
                 // 关键：无论是因为切歌、停止还是崩溃，都要恢复世界声音
-                cleanup();
+                cleanup(generation, localLine);
                 restoreOthers();
-                if (finishedNaturally && onTrackFinishedCallback != null) {
+                if (finishedNaturally && generation == PLAYBACK_GENERATION.get() && onTrackFinishedCallback != null) {
                     onTrackFinishedCallback.run();
                 }
             }
@@ -138,24 +143,34 @@ public class ClientMusicManager {
     public static void stop() {
         isPlaying = false;
         isPaused = false;
+        PLAYBACK_GENERATION.incrementAndGet();
 
         // 先恢复声音，再中断线程
         restoreOthers();
+
+        SourceDataLine currentLine = line;
+        line = null;
+        closeLine(currentLine);
 
         if (musicThread != null) {
             musicThread.interrupt();
             musicThread = null;
         }
-        cleanup();
     }
 
-    private static void cleanup() {
-        if (line != null) {
-            try {
-                line.stop();
-                line.close();
-            } catch (Exception ignored) {}
+    private static void cleanup(int generation, SourceDataLine localLine) {
+        if (generation == PLAYBACK_GENERATION.get() && line == localLine) {
             line = null;
+            closeLine(localLine);
+        }
+    }
+
+    private static void closeLine(SourceDataLine targetLine) {
+        if (targetLine != null) {
+            try {
+                targetLine.stop();
+                targetLine.close();
+            } catch (Exception ignored) {}
         }
     }
 

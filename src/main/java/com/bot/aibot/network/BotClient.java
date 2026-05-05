@@ -362,18 +362,22 @@ public class BotClient {
             List<? extends Number> groups = BotConfig.SERVER.groupIds.get();
 
             for (Number groupIdNum : groups) {
-                long gid = groupIdNum.longValue();
-
-                JsonObject params = new JsonObject();
-                params.addProperty("group_id", gid);
-                params.addProperty("message", message);
-
-                JsonObject root = new JsonObject();
-                root.addProperty("action", "send_group_msg");
-                root.add("params", params);
-
-                sendTextWithFailureLog(webSocket, new Gson().toJson(root), "send_group_msg gid=" + gid);
+                sendMessageToQQ(groupIdNum.longValue(), message);
             }
+        }
+    }
+
+    public void sendMessageToQQ(long groupId, String message) {
+        if (webSocket != null && !webSocket.isOutputClosed()) {
+            JsonObject params = new JsonObject();
+            params.addProperty("group_id", groupId);
+            params.addProperty("message", message);
+
+            JsonObject root = new JsonObject();
+            root.addProperty("action", "send_group_msg");
+            root.add("params", params);
+
+            sendTextWithFailureLog(webSocket, new Gson().toJson(root), "send_group_msg gid=" + groupId);
         }
     }
 

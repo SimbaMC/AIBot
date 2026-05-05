@@ -141,7 +141,12 @@ public class LLMClient {
      * 死亡播报翻译功能 (保持逻辑独立，不受点歌指令干扰)
      */
     public static void translateDeath(ServerPlayer player, String abstractKey) {
+        translateDeath(player, abstractKey, abstractKey.replace("%s", player.getName().getString()));
+    }
+
+    public static void translateDeath(ServerPlayer player, String abstractKey, String fallbackMessage) {
         String mode = BotConfig.SERVER.aiDeathMode.get();
+        mode = mode == null ? "OFF" : mode.trim().toUpperCase(java.util.Locale.ROOT);
         if (!BotConfig.SERVER.enableAI.get() || "OFF".equals(mode)) return;
 
         String systemPrompt = BotConfig.SERVER.aiDeathPrompt.get();
@@ -154,14 +159,34 @@ public class LLMClient {
                 "3. 只要输出翻译后的句子，不要其他废话。";
 
         sendRequest(promptWithContext, abstractKey, 0.8, translatedTemplate -> {
+            translatedTemplate = normalizeDeathTemplate(translatedTemplate);
             ChineseUtils.learn(abstractKey, translatedTemplate);
             String realMsg = translatedTemplate.replace("%s", playerName);
             String template = BotConfig.SERVER.deathMsgFormat.get();
-            String finalMsg = MinecraftEvents.formatMsg(template, playerName, realMsg);
+            String normalizedMessage = MinecraftEvents.avoidDuplicatedPlayerPrefix(template, playerName, realMsg);
+            String finalMsg = MinecraftEvents.formatMsg(template, playerName, normalizedMessage);
             BotClient.getInstance().sendMessageToQQ(finalMsg);
         }, errorMsg -> {
             System.out.println(">>> [Bot AI] 死亡翻译失败: " + errorMsg);
+            String template = BotConfig.SERVER.deathMsgFormat.get();
+            String normalizedMessage = MinecraftEvents.avoidDuplicatedPlayerPrefix(template, playerName, fallbackMessage);
+            BotClient.getInstance().sendMessageToQQ(MinecraftEvents.formatMsg(template, playerName, normalizedMessage));
         });
+    }
+
+    private static String normalizeDeathTemplate(String translatedTemplate) {
+        String normalized = translatedTemplate == null ? "" : translatedTemplate.trim();
+        if (normalized.startsWith("```")) {
+            normalized = normalized.replaceFirst("^```[a-zA-Z]*\\s*", "").replaceFirst("\\s*```$", "").trim();
+        }
+        if ((normalized.startsWith("\"") && normalized.endsWith("\""))
+                || (normalized.startsWith("'") && normalized.endsWith("'"))) {
+            normalized = normalized.substring(1, normalized.length() - 1).trim();
+        }
+        if (normalized.isEmpty()) {
+            return "%s 死了";
+        }
+        return normalized.contains("%s") ? normalized : "%s " + normalized;
     }
 
     /**

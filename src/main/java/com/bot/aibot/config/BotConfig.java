@@ -86,7 +86,7 @@ public class BotConfig {
             groupIds = builder.comment("QQ群号列表")
                     .defineList("group_ids", Arrays.asList(0L), o -> o instanceof Number);
             targetBotId = builder.comment("目标机器人Q号")
-                    .define("target_bot_id", 0L);
+                    .defineInRange("target_bot_id", 0L, 0L, Long.MAX_VALUE);
             reconnectEnabled = builder.comment("是否在断开连接后自动重连")
                     .define("reconnect_enabled", true);
             reconnectInitialInterval = builder.comment("初始重连间隔（秒）")
@@ -163,21 +163,25 @@ public class BotConfig {
             Path serverPath = FMLPaths.CONFIGDIR.get().resolve("aibot-common.toml");
             System.out.println(">>> [Bot] 正在重新加载服务器配置： " + serverPath);
 
-            CommentedFileConfig serverConfig = CommentedFileConfig.builder(serverPath)
+            try (CommentedFileConfig serverConfig = CommentedFileConfig.builder(serverPath)
                     .sync()
                     .writingMode(WritingMode.REPLACE)
-                    .build();
+                    .build()) {
 
-            serverConfig.load();
+                serverConfig.load();
+                loadServerValues(serverConfig);
+            }
 
             Path clientPath = FMLPaths.CONFIGDIR.get().resolve("aibot-client.toml");
             if (clientPath.toFile().exists()) {
                 System.out.println(">>> [Bot] 正在重新加载客户端配置: " + clientPath);
-                CommentedFileConfig clientConfig = CommentedFileConfig.builder(clientPath)
+                try (CommentedFileConfig clientConfig = CommentedFileConfig.builder(clientPath)
                         .sync()
                         .writingMode(WritingMode.REPLACE)
-                        .build();
-                clientConfig.load();
+                        .build()) {
+                    clientConfig.load();
+                    loadClientValues(clientConfig);
+                }
             }
 
             System.out.println(">>> [Bot] 配置文件热重载成功！");
@@ -185,6 +189,67 @@ public class BotConfig {
             System.err.println(">>> [Bot] 配置文件热重载失败！");
             e.printStackTrace();
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void loadServerValues(CommentedFileConfig config) {
+        SERVER.nodeMappings.set(read(config, "Status_Command_Settings.nodeMappings", (List<? extends String>) SERVER.nodeMappings.get()));
+        SERVER.defaultNodeName.set(read(config, "Status_Command_Settings.defaultNodeName", SERVER.defaultNodeName.get()));
+
+        SERVER.wsUrl.set(read(config, "general.ws_url", SERVER.wsUrl.get()));
+        SERVER.accessToken.set(read(config, "general.access_token", SERVER.accessToken.get()));
+        SERVER.groupIds.set(read(config, "general.group_ids", (List<? extends Number>) SERVER.groupIds.get()));
+        SERVER.targetBotId.set(asLong(read(config, "general.target_bot_id", SERVER.targetBotId.get())));
+        SERVER.reconnectEnabled.set(read(config, "general.reconnect_enabled", SERVER.reconnectEnabled.get()));
+        SERVER.reconnectInitialInterval.set(asInt(read(config, "general.reconnect_initial_interval", SERVER.reconnectInitialInterval.get())));
+        SERVER.reconnectMultiplier.set(asDouble(read(config, "general.reconnect_multiplier", SERVER.reconnectMultiplier.get())));
+        SERVER.reconnectMaxInterval.set(asInt(read(config, "general.reconnect_max_interval", SERVER.reconnectMaxInterval.get())));
+        SERVER.qqFaceApi.set(read(config, "general.qq_face_api", SERVER.qqFaceApi.get()));
+
+        SERVER.enableChatSync.set(read(config, "features.enable_chat_sync", SERVER.enableChatSync.get()));
+        SERVER.enableJoinLeave.set(read(config, "features.enable_join_leave", SERVER.enableJoinLeave.get()));
+        SERVER.enableDeath.set(read(config, "features.enable_death", SERVER.enableDeath.get()));
+        SERVER.enableAdvancement.set(read(config, "features.enable_advancement", SERVER.enableAdvancement.get()));
+        SERVER.mcPrefix.set(read(config, "features.mc_prefix", SERVER.mcPrefix.get()));
+        SERVER.broadcastCooldown.set(asInt(read(config, "features.broadcast_cooldown", SERVER.broadcastCooldown.get())));
+
+        SERVER.enableAI.set(read(config, "ai_features.enable_ai", SERVER.enableAI.get()));
+        SERVER.aiApiUrl.set(read(config, "ai_features.api_url", SERVER.aiApiUrl.get()));
+        SERVER.aiApiKey.set(read(config, "ai_features.api_key", SERVER.aiApiKey.get()));
+        SERVER.aiModelName.set(read(config, "ai_features.model_name", SERVER.aiModelName.get()));
+        SERVER.aiPrompt.set(read(config, "ai_features.system_prompt", SERVER.aiPrompt.get()));
+        SERVER.aiTriggerPrefix.set(read(config, "ai_features.trigger_prefix", SERVER.aiTriggerPrefix.get()));
+        SERVER.aiDeathMode.set(read(config, "ai_features.ai_death_mode", SERVER.aiDeathMode.get()));
+        SERVER.aiDeathPrompt.set(read(config, "ai_features.ai_death_prompt", SERVER.aiDeathPrompt.get()));
+
+        SERVER.advancementMsgFormat.set(read(config, "messages.advancement_msg", SERVER.advancementMsgFormat.get()));
+        SERVER.joinMsgFormat.set(read(config, "messages.join_msg", SERVER.joinMsgFormat.get()));
+        SERVER.leaveMsgFormat.set(read(config, "messages.leave_msg", SERVER.leaveMsgFormat.get()));
+        SERVER.deathMsgFormat.set(read(config, "messages.death_msg", SERVER.deathMsgFormat.get()));
+        SERVER.chatMsgFormat.set(read(config, "messages.chat_format", SERVER.chatMsgFormat.get()));
+        SERVER.startMsgFormat.set(read(config, "messages.start_msg", SERVER.startMsgFormat.get()));
+    }
+
+    private static void loadClientValues(CommentedFileConfig config) {
+        CLIENT.neteaseCookie.set(read(config, "client.netease_cookie", CLIENT.neteaseCookie.get()));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T read(CommentedFileConfig config, String path, T fallback) {
+        Object value = config.get(Arrays.asList(path.split("\\.")));
+        return value == null ? fallback : (T) value;
+    }
+
+    private static int asInt(Object value) {
+        return value instanceof Number number ? number.intValue() : Integer.parseInt(String.valueOf(value));
+    }
+
+    private static long asLong(Object value) {
+        return value instanceof Number number ? number.longValue() : Long.parseLong(String.valueOf(value));
+    }
+
+    private static double asDouble(Object value) {
+        return value instanceof Number number ? number.doubleValue() : Double.parseDouble(String.valueOf(value));
     }
 
     public static void saveClientCookie(String cookie) {

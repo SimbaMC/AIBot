@@ -1,63 +1,60 @@
 package com.bot.aibot.network.packet;
 
-import com.bot.aibot.client.ClientPacketHandler;
-import net.minecraft.network.FriendlyByteBuf;
-
-import java.util.function.Supplier;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 
 /**
  * 服务端 -> 客户端
- * 统一音乐指令包：包含播放、搜索、控制、GUI操作等所有指令
+ * 统一音乐指令包：包含播放、搜索、控制、GUI 操作等指令。
  */
-public class S2CMusicCommandPacket {
+public class S2CMusicCommandPacket implements CustomPacketPayload {
+    public static final Type<S2CMusicCommandPacket> TYPE =
+            new Type<>(ResourceLocation.fromNamespaceAndPath("aibot", "music_command"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, S2CMusicCommandPacket> STREAM_CODEC =
+            StreamCodec.ofMember(S2CMusicCommandPacket::encode, S2CMusicCommandPacket::decode);
 
-    // 定义指令动作枚举
     public enum Action {
-        PLAY_Direct,    // 直接播放 (参数: URL)
-        STOP,           // 停止/暂停 (参数: 无)
-        SEARCH_AND_PLAY,// 搜索并播放 (参数: 关键词)
-        OPEN_GUI,       // 打开播放器界面 (参数: 无)
+        PLAY_Direct,
+        STOP,
+        SEARCH_AND_PLAY,
+        OPEN_GUI,
         PLAY_MY_LIKE,
-        RESET_COOLDOWN// 【新增】随机播放我的红心歌单 (参数: 无)
+        RESET_COOLDOWN
     }
 
     private final Action action;
-    private final String data;   // 泛用数据字段 (URL, 关键词, 或者空)
-    private final long extra;    // 额外数据 (如时长, 或者是 bool 标志位)
+    private final String data;
+    private final long extra;
 
-    // 构造函数 1: 基础指令
     public S2CMusicCommandPacket(Action action) {
         this(action, "", 0);
     }
 
-    // 构造函数 2: 带数据的指令 (如搜索)
     public S2CMusicCommandPacket(Action action, String data) {
         this(action, data, 0);
     }
 
-    // 全参构造
     public S2CMusicCommandPacket(Action action, String data, long extra) {
         this.action = action;
-        this.data = data;
+        this.data = data == null ? "" : data;
         this.extra = extra;
     }
 
-    // 解码 (从 ByteBuf 读取)
-    public S2CMusicCommandPacket(FriendlyByteBuf buf) {
-        this.action = buf.readEnum(Action.class);
-        this.data = buf.readUtf();
-        this.extra = buf.readLong();
+    private static S2CMusicCommandPacket decode(RegistryFriendlyByteBuf buf) {
+        return new S2CMusicCommandPacket(buf.readEnum(Action.class), buf.readUtf(), buf.readLong());
     }
 
-    // 编码 (写入 ByteBuf)
-    public void encode(FriendlyByteBuf buf) {
+    private void encode(RegistryFriendlyByteBuf buf) {
         buf.writeEnum(this.action);
         buf.writeUtf(this.data);
         buf.writeLong(this.extra);
     }
 
-    // 处理逻辑 (转发给 ClientPacketHandler)
-    public static void handle(S2CMusicCommandPacket msg, Supplier<?> ctx) {
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 
     public Action getAction() {

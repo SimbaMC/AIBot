@@ -7,25 +7,29 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
 
+import javax.imageio.ImageIO;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.net.ConnectException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.nio.channels.UnresolvedAddressException;
 import java.time.Duration;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ImageCacheManager {
 
-    private static final Map<String, Object> TEXTURE_CACHE = new HashMap<>();
-    private static final Map<String, Boolean> LOADING_STATUS = new HashMap<>();
+    private static final Map<String, Object> TEXTURE_CACHE = new ConcurrentHashMap<>();
+    private static final Map<String, Boolean> LOADING_STATUS = new ConcurrentHashMap<>();
     private static final Set<String> FAILED_URLS = Collections.synchronizedSet(new HashSet<>());
 
     private static final HttpClient IMAGE_CLIENT = HttpClient.newBuilder()
@@ -53,7 +57,7 @@ public class ImageCacheManager {
     }
 
     private static void startDownload(String rawUrl) {
-        String url = rawUrl.replace("&amp;", "&");
+        String url = normalizeUrl(rawUrl);
         LOADING_STATUS.put(rawUrl, true);
 
         System.out.println(">>> [ImageCache] 开始下载: " + url);
@@ -63,6 +67,8 @@ public class ImageCacheManager {
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(url))
                         .header("User-Agent", "Mozilla/5.0")
+                        .header("Accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+                        .header("Referer", "https://im.qq.com/")
                         .timeout(Duration.ofSeconds(10))
                         .GET()
                         .build();
@@ -101,16 +107,18 @@ public class ImageCacheManager {
                     }
 
                     // 3. 静态图 (包含 PNG/JPG/解析失败的动图第一帧)
-                    try (ByteArrayInputStream bis = new ByteArrayInputStream(data)) {
-                        NativeImage image = NativeImage.read(bis);
+                    NativeImage image = readImage(data);
+                    if (image != null) {
                         Minecraft.getInstance().execute(() -> {
                             try {
                                 DynamicTexture texture = new DynamicTexture(image);
                                 String safeId = "chat_img_" + Math.abs(url.hashCode());
                                 ResourceLocation rl = Minecraft.getInstance().getTextureManager().register(safeId, texture);
                                 TEXTURE_CACHE.put(rawUrl, rl);
-                            } catch (Exception e) { markFailed(rawUrl, "纹理注册失败"); }
+                            } catch (Exception e) { markFailed(rawUrl, "纹理注册失败: " + e.getMessage()); }
                         });
+                    } else {
+                        throw new RuntimeException("不支持的图片格式");
                     }
                 } else {
                     throw new RuntimeException("HTTP " + response.statusCode());
@@ -152,5 +160,44 @@ public class ImageCacheManager {
     private static boolean isGif(byte[] data) {
         if (data.length < 6) return false;
         return data[0] == 'G' && data[1] == 'I' && data[2] == 'F';
+    }
+
+    private static NativeImage readImage(byte[] data) {
+        try (ByteArrayInputStream bis = new ByteArrayInputStream(data)) {
+            return NativeImage.read(bis);
+        } catch (Exception ignored) {
+        }
+
+        try (ByteArrayInputStream bis = new ByteArrayInputStream(data)) {
+            BufferedImage buffered = ImageIO.read(bis);
+            if (buffered == null) return null;
+
+            BufferedImage argb = new BufferedImage(buffered.getWidth(), buffered.getHeight(), BufferedImage.TYPE_INT_ARGB);
+            Graphics2D graphics = argb.createGraphics();
+            graphics.drawImage(buffered, 0, 0, null);
+            graphics.dispose();
+
+            try (ByteArrayOutputStream pngOut = new ByteArrayOutputStream()) {
+                ImageIO.write(argb, "png", pngOut);
+                try (ByteArrayInputStream pngIn = new ByteArrayInputStream(pngOut.toByteArray())) {
+                    return NativeImage.read(pngIn);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println(">>> [ImageCache] ImageIO 转换失败: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private static String normalizeUrl(String rawUrl) {
+        return rawUrl.trim()
+                .replace("&amp;", "&")
+                .replace("&#44;", ",")
+                .replace("&#91;", "[")
+                .replace("&#93;", "]")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&quot;", "\"")
+                .replace("&#39;", "'");
     }
 }
