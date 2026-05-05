@@ -188,4 +188,21 @@ public class BotConfig {
             e.printStackTrace();
         }
     }
+
+    public static void saveClientCookie(String cookie) {
+        try {
+            Path clientPath = FMLPaths.CONFIGDIR.get().resolve("aibot-client.toml");
+            CommentedFileConfig clientConfig = CommentedFileConfig.builder(clientPath)
+                    .sync()
+                    .writingMode(WritingMode.REPLACE)
+                    .build();
+            clientConfig.load();
+            clientConfig.set("client.netease_cookie", cookie == null ? "" : cookie);
+            clientConfig.save();
+            clientConfig.close();
+            CLIENT.neteaseCookie.set(cookie == null ? "" : cookie);
+        } catch (Exception e) {
+            System.err.println(">>> [Bot] 保存网易云 Cookie 失败: " + e.getMessage());
+        }
+    }
 }

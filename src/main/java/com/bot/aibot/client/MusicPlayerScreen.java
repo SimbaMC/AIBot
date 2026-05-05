@@ -768,7 +768,7 @@ public class MusicPlayerScreen extends Screen {
                     else if (result.code == 802) { loginStatusText = "§a扫描成功，请确认"; }
                     else if (result.code == 803) {
                         loginStatusText = "§a登录成功！";
-                        BotConfig.CLIENT.neteaseCookie.set(result.cookie);
+                        BotConfig.saveClientCookie(result.cookie);
                         NeteaseApi.loadCookies();
                         Minecraft.getInstance().execute(() -> {
                             currentState = ScreenState.PLAYER;
