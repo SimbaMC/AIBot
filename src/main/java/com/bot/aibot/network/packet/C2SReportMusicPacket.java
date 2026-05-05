@@ -1,10 +1,11 @@
 package com.bot.aibot.network.packet;
 
 import com.bot.aibot.network.PacketHandler;
+import com.bot.aibot.network.packet.S2CMusicCommandPacket.Action;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.neoforge.network.PacketDistributor;
+import com.bot.aibot.BottyMod;
 
 import java.util.function.Supplier;
 
@@ -36,6 +37,21 @@ public class C2SReportMusicPacket {
     }
 
     public void handle(Supplier<?> ctx) {
-        // NeoForge payload migration pending
+        if (BottyMod.serverInstance == null) return;
+        BottyMod.serverInstance.execute(() -> {
+            if (isGlobal) {
+                for (ServerPlayer player : BottyMod.serverInstance.getPlayerList().getPlayers()) {
+                    PacketHandler.sendToPlayer(new S2CMusicCommandPacket(Action.PLAY_Direct, url, duration), player);
+                }
+                BottyMod.serverInstance.getPlayerList().broadcastSystemMessage(
+                        Component.literal("§a[Bot] 正在全服播放: " + songName), false
+                );
+            } else {
+                ServerPlayer first = BottyMod.serverInstance.getPlayerList().getPlayers().stream().findFirst().orElse(null);
+                if (first != null) {
+                    PacketHandler.sendToPlayer(new S2CMusicCommandPacket(Action.PLAY_Direct, url, duration), first);
+                }
+            }
+        });
     }
 }
