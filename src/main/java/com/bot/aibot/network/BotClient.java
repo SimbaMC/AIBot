@@ -1,5 +1,6 @@
 package com.bot.aibot.network;
 
+import com.bot.aibot.BottyMod;
 import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.utils.ChineseUtils;
 import com.bot.aibot.utils.HttpUtils;
@@ -108,7 +109,18 @@ public class BotClient {
                 }
 
                 CompletableFuture<WebSocket> wsFuture = builder.buildAsync(URI.create(url), new WSListener());
-                webSocket = wsFuture.get(15, TimeUnit.SECONDS);
+                WebSocket connected = wsFuture.get(15, TimeUnit.SECONDS);
+                if (connected == null || connected.isOutputClosed()) {
+                    throw new IllegalStateException("WebSocket opened then closed immediately");
+                }
+                webSocket = connected;
+                onConnected();
+                if (BottyMod.serverInstance != null) {
+                    BottyMod.serverInstance.execute(() ->
+                            BottyMod.serverInstance.getPlayerList().broadcastSystemMessage(net.minecraft.network.chat.Component.literal("§a[Bot] 连接成功！"), false)
+                    );
+                }
+                sendStartMessageToQQ();
                 LOGGER.info(">>> [Bot] 连接成功！ws=" + wsId(webSocket));
 
             } catch (Exception e) {
@@ -357,6 +369,17 @@ public class BotClient {
     public void sendRawJson(String json) {
         if (webSocket != null && !webSocket.isOutputClosed()) {
             sendTextWithFailureLog(webSocket, json, "send_raw_json");
+        }
+    }
+
+    private void sendStartMessageToQQ() {
+        try {
+            String template = BotConfig.SERVER.startMsgFormat.get();
+            String prefix = BotConfig.SERVER.mcPrefix.get();
+            String msg = template.replace("%prefix%", prefix);
+            sendMessageToQQ(msg);
+        } catch (Exception e) {
+            LOGGER.error(">>> [Bot] 发送启动消息失败: " + e.getMessage());
         }
     }
 }
