@@ -6,10 +6,14 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
 import net.minecraftforge.network.PacketDistributor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.function.Supplier;
 
 public class C2SReportMusicPacket {
+    private static final Logger LOGGER = LogManager.getLogger();
+
     private final String url;
     private final String songName;
     private final long duration;
@@ -40,7 +44,7 @@ public class C2SReportMusicPacket {
         ctx.get().enqueueWork(() -> {
             ServerPlayer sender = ctx.get().getSender();
             if (sender != null) {
-                System.out.println(">>> [Server] 收到歌曲上报: " + songName + " (全服: " + isGlobal + ")");
+                LOGGER.info(">>> [Server] 收到歌曲上报: {} (全服: {})", songName, isGlobal);
 
                 // 构造播放指令
                 S2CMusicCommandPacket playPacket = new S2CMusicCommandPacket(

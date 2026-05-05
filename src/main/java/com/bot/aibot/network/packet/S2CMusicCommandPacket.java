@@ -65,4 +65,16 @@ public class S2CMusicCommandPacket {
         });
         ctx.get().setPacketHandled(true);
     }
+
+    public Action getAction() {
+        return action;
+    }
+
+    public String getData() {
+        return data;
+    }
+
+    public long getExtra() {
+        return extra;
+    }
 }
