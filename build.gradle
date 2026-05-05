@@ -27,7 +27,6 @@ neoForge {
             systemProperty 'forge.logging.markers', 'REGISTRIES'
             systemProperty 'forge.logging.console.level', 'debug'
             jvmArgument '-Dfile.encoding=UTF-8'
-            additionalRuntimeClasspath.from(configurations.libraries)
         }
 
         client {
@@ -61,13 +60,13 @@ repositories {
     }
 }
 configurations {
-    libraries
     shade
-    implementation.extendsFrom shade, libraries
+    implementation.extendsFrom shade
 }
 
 dependencies {
-    libraries 'javazoom:jlayer:1.0.1'
+    implementation 'javazoom:jlayer:1.0.1'
+    runtimeOnly 'javazoom:jlayer:1.0.1'
     jarJar(implementation('javazoom:jlayer:1.0.1'))
 }
 
