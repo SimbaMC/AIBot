@@ -42,16 +42,24 @@ public class MinecraftEvents {
         String name = QQBindingManager.getInstance().getChatDisplayName(event.getPlayer());
         String msg = event.getMessage().getString();
         String normalizedMsg = msg == null ? "" : msg.trim();
+        boolean aiEnabled = BotConfig.SERVER.enableAI.get();
 
-        if (BotConfig.SERVER.enableAI.get()) {
+        LOGGER.info(">>> [Bot AI] 聊天事件: player=" + name + ", aiEnabled=" + aiEnabled + ", rawMsg=" + normalizedMsg);
+
+        if (aiEnabled) {
             String trigger = BotConfig.SERVER.aiTriggerPrefix.get();
             String normalizedTrigger = trigger == null ? "" : trigger.trim();
             if (normalizedTrigger.isEmpty()) {
                 normalizedTrigger = "bot";
             }
 
-            if (normalizedMsg.equalsIgnoreCase(normalizedTrigger) ||
-                    normalizedMsg.toLowerCase().startsWith((normalizedTrigger + " ").toLowerCase())) {
+            boolean triggerMatched = normalizedMsg.equalsIgnoreCase(normalizedTrigger)
+                    || normalizedMsg.toLowerCase().startsWith((normalizedTrigger + " ").toLowerCase())
+                    || normalizedMsg.toLowerCase().startsWith((normalizedTrigger + "，").toLowerCase())
+                    || normalizedMsg.toLowerCase().startsWith((normalizedTrigger + ",").toLowerCase())
+                    || normalizedMsg.toLowerCase().startsWith(normalizedTrigger.toLowerCase());
+
+            if (triggerMatched) {
                 String question = normalizedMsg.substring(normalizedTrigger.length()).trim();
                 if (!question.isEmpty()) {
                     LOGGER.info(">>> [Bot AI] 触发词命中: player=" + name + ", trigger=" + normalizedTrigger + ", question=" + question);
@@ -61,6 +69,8 @@ public class MinecraftEvents {
                 }
                 return;
             }
+        } else {
+            LOGGER.info(">>> [Bot AI] 已跳过 AI 处理：enable_ai=false");
         }
         if (BotConfig.SERVER.enableChatSync.get()) {
             String template = BotConfig.SERVER.chatMsgFormat.get();
