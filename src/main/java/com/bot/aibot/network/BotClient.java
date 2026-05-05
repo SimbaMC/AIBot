@@ -114,19 +114,26 @@ public class BotClient {
                     throw new IllegalStateException("WebSocket opened then closed immediately");
                 }
                 webSocket = connected;
-                onConnected();
-                if (BottyMod.serverInstance != null) {
-                    BottyMod.serverInstance.execute(() ->
-                            BottyMod.serverInstance.getPlayerList().broadcastSystemMessage(net.minecraft.network.chat.Component.literal("§a[Bot] 连接成功！"), false)
-                    );
+                if (this.webSocket != connected || connected.isOutputClosed()) {
+                    throw new IllegalStateException("WebSocket became inactive before confirmation");
                 }
-                sendStartMessageToQQ();
-                LOGGER.info(">>> [Bot] 连接成功！ws=" + wsId(webSocket));
+                onConnected();
+                if (this.webSocket == connected && !connected.isOutputClosed()) {
+                    if (BottyMod.serverInstance != null) {
+                        BottyMod.serverInstance.execute(() ->
+                                BottyMod.serverInstance.getPlayerList().broadcastSystemMessage(net.minecraft.network.chat.Component.literal("§a[Bot] 连接成功！"), false)
+                        );
+                    }
+                    sendStartMessageToQQ();
+                    LOGGER.info(">>> [Bot] 连接成功！ws=" + wsId(connected));
+                } else {
+                    throw new IllegalStateException("WebSocket closed during success notification");
+                }
 
             } catch (Exception e) {
                 LOGGER.error(">>> [Bot] 连接失败: " + e.getMessage());
                 webSocket = null;
-                scheduleReconnect();
+                scheduleReconnect(true);
             } finally {
                 isConnecting.set(false);
             }
@@ -155,6 +162,10 @@ public class BotClient {
     }
 
     public void scheduleReconnect() {
+        scheduleReconnect(false);
+    }
+
+    private void scheduleReconnect(boolean ignoreConnectingState) {
         if (intentionalClose) {
             LOGGER.info(">>> [Bot] 跳过重连：当前为主动关闭状态");
             return;
@@ -163,7 +174,7 @@ public class BotClient {
             LOGGER.info(">>> [Bot] 跳过重连：配置已关闭自动重连");
             return;
         }
-        if (isConnecting.get() || (webSocket != null && !webSocket.isOutputClosed())) {
+        if (!ignoreConnectingState && (isConnecting.get() || (webSocket != null && !webSocket.isOutputClosed()))) {
             LOGGER.info(">>> [Bot] 跳过重连：连接任务进行中或已有活动连接");
             return;
         }
@@ -203,7 +214,7 @@ public class BotClient {
         }
         LOGGER.info(">>> [Bot] 活动连接断开: ws=" + wsId(ws) + ", reason=" + reason);
         this.webSocket = null;
-        scheduleReconnect();
+        scheduleReconnect(true);
         return true;
     }
 
