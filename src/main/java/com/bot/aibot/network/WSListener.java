@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 
 public class WSListener implements WebSocket.Listener {
 
+    private static final Logger LOGGER = LogManager.getLogger();
     private final StringBuilder buffer = new StringBuilder();
     private static final Pattern CQ_PATTERN = Pattern.compile("\\[CQ:(image|face),(.*?)\\]");
     private static final int MAX_BUFFER_SIZE = 1024 * 1024;
@@ -32,13 +33,17 @@ public class WSListener implements WebSocket.Listener {
         LOGGER.info(">>> [Bot] 连接成功！等待消息...");
         webSocket.request(1);
 
-        BotClient.getInstance().onConnected();
+        BotClient client = BotClient.getInstance();
+        client.onConnected();
 
-        if (BottyMod.serverInstance != null) {
-            BottyMod.serverInstance.execute(() ->
-                    BottyMod.serverInstance.getPlayerList().broadcastSystemMessage(Component.literal("§a[Bot] 连接成功！"), false)
-            );
-        }
+        // 延迟确认连接稳定，避免“刚连上立刻断开”时仍提示连接成功。
+        CompletableFuture.delayedExecutor(1, java.util.concurrent.TimeUnit.SECONDS).execute(() -> {
+            if (BottyMod.serverInstance != null && client.isCurrentActiveSocket(webSocket)) {
+                BottyMod.serverInstance.execute(() ->
+                        BottyMod.serverInstance.getPlayerList().broadcastSystemMessage(Component.literal("§a[Bot] 连接成功！"), false)
+                );
+            }
+        });
         sendStartMessage(webSocket);
     }
 

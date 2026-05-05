@@ -133,6 +133,10 @@ public class BotClient {
         LOGGER.info(">>> [Bot] onConnected: 已重置重连退避参数");
     }
 
+    public boolean isCurrentActiveSocket(WebSocket ws) {
+        return this.webSocket == ws && isWebSocketActive(ws);
+    }
+
     public void clearWebSocket() {
         LOGGER.info(">>> [Bot] clearWebSocket: 主动清理引用, oldWs=" + wsId(webSocket));
         webSocket = null;
