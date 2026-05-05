@@ -27,6 +27,13 @@ public class MinecraftEvents {
                 .replace("%msg%", message);
     }
 
+    private static String avoidDuplicatedPlayerPrefix(String template, String playerName, String message) {
+        if (template.contains("%player%") && message != null && message.startsWith(playerName)) {
+            return message.substring(playerName.length());
+        }
+        return message;
+    }
+
     @SubscribeEvent
     public void onChat(ServerChatEvent event) {
         String name = QQBindingManager.getInstance().getChatDisplayName(event.getPlayer());
@@ -108,7 +115,6 @@ public class MinecraftEvents {
             if (cached != null) {
                 try {
                     finalMessage = cached.replace("%s", playerName);
-                    System.out.println(">>> [Bot] 缓存命中！");
                 } catch (Exception e) {
                     finalMessage = cached;
                 }
@@ -119,6 +125,7 @@ public class MinecraftEvents {
         }
 
         String template = BotConfig.SERVER.deathMsgFormat.get();
-        BotClient.getInstance().sendMessageToQQ(formatMsg(template, playerName, finalMessage));
+        String normalizedMessage = avoidDuplicatedPlayerPrefix(template, playerName, finalMessage);
+        BotClient.getInstance().sendMessageToQQ(formatMsg(template, playerName, normalizedMessage));
     }
 }
