@@ -1,12 +1,9 @@
 package com.bot.aibot.config;
 
 import com.electronwill.nightconfig.core.file.CommentedFileConfig;
-import com.electronwill.nightconfig.core.io.WritingMode;
-import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.common.ModConfigSpec;
 import org.apache.commons.lang3.tuple.Pair;
 
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
@@ -160,32 +157,31 @@ public class BotConfig {
 
     public static void refresh() {
         try {
-            Path serverPath = FMLPaths.CONFIGDIR.get().resolve("aibot-common.toml");
-            System.out.println(">>> [Bot] 正在重新加载服务器配置： " + serverPath);
-
-            CommentedFileConfig serverConfig = CommentedFileConfig.builder(serverPath)
-                    .sync()
-                    .writingMode(WritingMode.REPLACE)
-                    .build();
-
-            serverConfig.load();
-            SERVER_SPEC.setConfig(serverConfig);
-
-            Path clientPath = FMLPaths.CONFIGDIR.get().resolve("aibot-client.toml");
-            if (clientPath.toFile().exists()) {
-                System.out.println(">>> [Bot] 正在重新加载客户端配置: " + clientPath);
-                CommentedFileConfig clientConfig = CommentedFileConfig.builder(clientPath)
-                        .sync()
-                        .writingMode(WritingMode.REPLACE)
-                        .build();
-                clientConfig.load();
-                CLIENT_SPEC.setConfig(clientConfig);
-            }
-
+            refreshSpec(SERVER_SPEC, "aibot-common.toml");
+            refreshSpec(CLIENT_SPEC, "aibot-client.toml");
             System.out.println(">>> [Bot] 配置文件热重载成功！");
         } catch (Exception e) {
             System.err.println(">>> [Bot] 配置文件热重载失败！");
             e.printStackTrace();
+        }
+    }
+
+    private static void refreshSpec(ModConfigSpec spec, String fileName) {
+        try {
+            // Access the internal loaded config and reload from disk
+            java.lang.reflect.Field loadedConfigField = ModConfigSpec.class.getDeclaredField("loadedConfig");
+            loadedConfigField.setAccessible(true);
+            Object loadedConfig = loadedConfigField.get(spec);
+            if (loadedConfig != null) {
+                java.lang.reflect.Method configMethod = loadedConfig.getClass().getMethod("config");
+                Object cfg = configMethod.invoke(loadedConfig);
+                if (cfg instanceof CommentedFileConfig) {
+                    ((CommentedFileConfig) cfg).load();
+                }
+            }
+            spec.afterReload();
+        } catch (Exception e) {
+            System.err.println(">>> [Bot] 重载配置 " + fileName + " 失败: " + e.getMessage());
         }
     }
 }

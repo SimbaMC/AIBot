@@ -221,7 +221,7 @@ public class ChineseUtils {
         }
         // ... 其他部分保持不变 (LiteralContents, Siblings) ...
         StringBuilder sb = new StringBuilder();
-        if (component.getContents() instanceof PlainTextContents.Literal literal) {
+        if (component.getContents() instanceof PlainTextContents.LiteralContents literal) {
             sb.append(literal.text());
         }
         for (Component sibling : component.getSiblings()) {

@@ -29,7 +29,7 @@ public class LoginQrScreen extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         // 1. 绘制半透明黑色背景
-        this.renderBackground(graphics);
+        this.renderBackground(graphics, mouseX, mouseY, partialTick);
 
         if (qrCache != null) {
             int qrSize = qrCache.size * scale;
