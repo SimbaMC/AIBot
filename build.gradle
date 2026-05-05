@@ -24,7 +24,6 @@ neoForge {
 
     runs {
         configureEach {
-            gameDirectory = project.file('run')
             systemProperty 'forge.logging.markers', 'REGISTRIES'
             systemProperty 'forge.logging.console.level', 'debug'
             jvmArgument '-Dfile.encoding=UTF-8'
@@ -32,11 +31,13 @@ neoForge {
 
         client {
             type = "client"
+            gameDirectory = project.file('run/client')
             systemProperty 'forge.enabledGameTestNamespaces', mod_id
         }
 
         server {
             type = "server"
+            gameDirectory = project.file('run/server')
             systemProperty 'forge.enabledGameTestNamespaces', mod_id
             programArgument '--nogui'
         }
