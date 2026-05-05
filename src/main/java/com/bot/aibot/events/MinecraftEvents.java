@@ -12,11 +12,14 @@ import net.minecraftforge.event.ServerChatEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.regex.Pattern;
 
 public class MinecraftEvents {
 
+    private static final Logger LOGGER = LogManager.getLogger();
     private static final Pattern CHINESE_PATTERN = Pattern.compile("[\\u4e00-\\u9fa5]");
 
     public static String formatMsg(String template, String playerName, String message) {
@@ -38,13 +41,23 @@ public class MinecraftEvents {
     public void onChat(ServerChatEvent event) {
         String name = QQBindingManager.getInstance().getChatDisplayName(event.getPlayer());
         String msg = event.getMessage().getString();
+        String normalizedMsg = msg == null ? "" : msg.trim();
 
         if (BotConfig.SERVER.enableAI.get()) {
             String trigger = BotConfig.SERVER.aiTriggerPrefix.get();
-            if (msg.toLowerCase().startsWith(trigger.toLowerCase())) {
-                String question = msg.substring(trigger.length()).trim();
+            String normalizedTrigger = trigger == null ? "" : trigger.trim();
+            if (normalizedTrigger.isEmpty()) {
+                normalizedTrigger = "bot";
+            }
+
+            if (normalizedMsg.equalsIgnoreCase(normalizedTrigger) ||
+                    normalizedMsg.toLowerCase().startsWith((normalizedTrigger + " ").toLowerCase())) {
+                String question = normalizedMsg.substring(normalizedTrigger.length()).trim();
                 if (!question.isEmpty()) {
+                    LOGGER.info(">>> [Bot AI] 触发词命中: player=" + name + ", trigger=" + normalizedTrigger + ", question=" + question);
                     LLMClient.chat(event.getPlayer(), question);
+                } else {
+                    LOGGER.info(">>> [Bot AI] 触发词命中但问题为空: player=" + name + ", trigger=" + normalizedTrigger);
                 }
                 return;
             }
