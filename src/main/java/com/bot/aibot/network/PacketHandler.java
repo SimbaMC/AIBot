@@ -33,6 +33,7 @@ public class PacketHandler {
     }
     public static <MSG> void sendToServer(MSG message) {
         if (message instanceof C2SReportMusicPacket reportMusicPacket) {
+            LOGGER.warn(">>> [Packet] 使用迁移期本地桥接 sendToServer（仅同进程可用，独立 Client/Server 无法互通）");
             reportMusicPacket.handle(() -> null);
             return;
         }

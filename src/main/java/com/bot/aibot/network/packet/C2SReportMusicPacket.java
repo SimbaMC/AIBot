@@ -6,10 +6,13 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import com.bot.aibot.BottyMod;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.function.Supplier;
 
 public class C2SReportMusicPacket {
+    private static final Logger LOGGER = LogManager.getLogger();
     private final String url;
     private final String songName;
     private final long duration;
@@ -37,7 +40,10 @@ public class C2SReportMusicPacket {
     }
 
     public void handle(Supplier<?> ctx) {
-        if (BottyMod.serverInstance == null) return;
+        if (BottyMod.serverInstance == null) {
+            LOGGER.warn(">>> [Packet] 未检测到可用的 Server 实例，广播包无法在当前进程处理。");
+            return;
+        }
         BottyMod.serverInstance.execute(() -> {
             if (isGlobal) {
                 for (ServerPlayer player : BottyMod.serverInstance.getPlayerList().getPlayers()) {
