@@ -20,6 +20,7 @@ public class S2CMusicCommandPacket implements CustomPacketPayload {
         STOP,
         SEARCH_AND_PLAY,
         OPEN_GUI,
+        LOGOUT,
         PLAY_MY_LIKE,
         RESET_COOLDOWN
     }

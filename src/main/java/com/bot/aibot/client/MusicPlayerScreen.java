@@ -77,7 +77,7 @@ public class MusicPlayerScreen extends Screen {
     private PlaylistListWidget playlistList;
     private FlatButton btnSearch, btnBack;
     private FlatButton btnPlayPrev, btnToggle, btnPlayNext, btnStop;
-    private FlatButton btnLoopMode, btnMode;
+    private FlatButton btnLoopMode, btnMode, btnLogout;
     private FlatButton btnPagePrev, btnPageNext;
     private FlatButton btnStartLogin, btnCancelLogin;
 
@@ -249,6 +249,9 @@ public class MusicPlayerScreen extends Screen {
         this.btnPageNext = new FlatButton(leftPos + WINDOW_WIDTH - 30, bY, 25, 20, ">", b -> changePage(1));
         this.addRenderableWidget(this.btnPagePrev);
         this.addRenderableWidget(this.btnPageNext);
+
+        this.btnLogout = new FlatButton(leftPos + WINDOW_WIDTH - 125, bY, 60, 20, "退出登录", b -> logout());
+        this.addRenderableWidget(this.btnLogout);
 
         // 列表
         int listY = contentTop + 40;
@@ -761,6 +764,37 @@ public class MusicPlayerScreen extends Screen {
         });
         loginThread.start();
     }
+
+    public void afterLogout() {
+        stopLoginProcess();
+        CACHED_ALL_IDS = null;
+        CACHED_CURRENT_LIST = null;
+        CACHED_USER_PLAYLISTS = null;
+        CACHED_PAGE = 0;
+        CACHED_TAB = Tab.SEARCH;
+        CACHED_IN_PLAYLIST_FOLDER = false;
+        CACHED_FOLDER_NAME = "";
+        CACHED_PLAYLIST_ID = -1;
+        allSongIdsCache = null;
+        currentPage = 0;
+        currentTab = Tab.SEARCH;
+        inPlaylistFolder = false;
+        currentFolderName = "";
+        currentPlaylistId = -1;
+        statusText = Component.empty();
+        currentState = ScreenState.LOGIN_PROMPT;
+        init();
+    }
+
+    private void logout() {
+        NeteaseApi.logout();
+        ClientMusicManager.stop();
+        if (this.minecraft != null && this.minecraft.player != null) {
+            this.minecraft.player.displayClientMessage(Component.literal("§a[Bot] 已退出网易云登录"), true);
+        }
+        afterLogout();
+    }
+
     private void stopLoginProcess() { qrCodeCache = null; }
     @Override public void onClose() { stopLoginProcess(); super.onClose(); }
     private void updateModeButton() {

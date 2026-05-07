@@ -57,10 +57,11 @@ public class NeteaseApi {
 
     public static void loadCookies() {
         try {
+            cookieManager.getCookieStore().removeAll();
             initBaseCookie();
             if (BotConfig.CLIENT == null) return;
 
-            String savedCookie = BotConfig.CLIENT.neteaseCookie.get();
+            String savedCookie = BotConfig.loadClientCookie();
             if (savedCookie == null || savedCookie.isEmpty()) return;
 
             LOGGER.info(">>> [API] 正在恢复登录状态...");
@@ -78,6 +79,16 @@ public class NeteaseApi {
                 }
             }
             LOGGER.info(">>> [API] 登录状态恢复成功！");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void logout() {
+        try {
+            cookieManager.getCookieStore().removeAll();
+            BotConfig.clearClientCookie();
+            initBaseCookie();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -161,11 +172,7 @@ public class NeteaseApi {
             String cookie = "";
 
             if (code == 803) {
-                StringBuilder sb = new StringBuilder();
-                cookieManager.getCookieStore().getCookies().forEach(c ->
-                        sb.append(c.getName()).append("=").append(c.getValue()).append("; ")
-                );
-                cookie = sb.toString();
+                cookie = serializeAuthCookies();
                 if (cookie.isEmpty() && root.has("cookie")) {
                     cookie = root.get("cookie").getAsString();
                 }
@@ -307,6 +314,21 @@ public class NeteaseApi {
     }
 
     // ================= 加密算法 (保持不变) =================
+    private static String serializeAuthCookies() {
+        Set<String> persistedNames = Set.of("MUSIC_U", "__csrf", "NMTID", "MUSIC_A_T", "MUSIC_R_T");
+        Map<String, String> cookies = new LinkedHashMap<>();
+
+        cookieManager.getCookieStore().getCookies().forEach(c -> {
+            if (persistedNames.contains(c.getName())) {
+                cookies.put(c.getName(), c.getValue());
+            }
+        });
+
+        StringBuilder sb = new StringBuilder();
+        cookies.forEach((name, value) -> sb.append(name).append("=").append(value).append("; "));
+        return sb.toString();
+    }
+
     private static final String MODULUS = "00e0b509f6259df8642dbc35662901477df22677ec152b5ff68ace615bb7b725152b3ab17a876aea8a5aa76d2e417629ec4ee341f56135fccf695280104e0312ecbda92557c93870114af6c9d05c4f7f0c3685b7a46bee255932575cce10b424d813cfe4875d3e82047b97ddef52741d546b8e289dc6935b3ece0462db0a22b8e7";
     private static final String NONCE = "0CoJUm6Qyw8W8jud";
     private static final String PUB_KEY = "010001";

@@ -49,6 +49,18 @@ public class ClientPacketHandler {
             return;
         }
 
+        if (action == S2CMusicCommandPacket.Action.LOGOUT) {
+            mc.execute(() -> {
+                NeteaseApi.logout();
+                ClientMusicManager.stop();
+                mc.player.displayClientMessage(Component.literal("§a[Bot] 已退出网易云登录"), true);
+                if (mc.screen instanceof MusicPlayerScreen screen) {
+                    screen.afterLogout();
+                }
+            });
+            return;
+        }
+
         new Thread(() -> {
             // 4. 搜索指令
             if (action == S2CMusicCommandPacket.Action.SEARCH_AND_PLAY) {

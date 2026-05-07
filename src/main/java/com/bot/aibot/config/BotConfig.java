@@ -6,6 +6,8 @@ import net.neoforged.neoforge.common.ModConfigSpec;
 import net.neoforged.fml.loading.FMLPaths;
 import org.apache.commons.lang3.tuple.Pair;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -231,7 +233,8 @@ public class BotConfig {
     }
 
     private static void loadClientValues(CommentedFileConfig config) {
-        CLIENT.neteaseCookie.set(read(config, "client.netease_cookie", CLIENT.neteaseCookie.get()));
+        CLIENT.neteaseCookie.set("");
+        clearLegacyConfigCookie(config);
     }
 
     @SuppressWarnings("unchecked")
@@ -254,7 +257,12 @@ public class BotConfig {
 
     public static void saveClientCookie(String cookie) {
         String normalized = cookie == null ? "" : cookie.trim();
-        try {
+        if (savePrivateClientCookie(normalized)) {
+            clearLegacyClientConfigCookie();
+            return;
+        }
+
+        if (Boolean.getBoolean("aibot.allowLegacyCookieConfigSave")) try {
             CLIENT.neteaseCookie.set(normalized);
             CLIENT_SPEC.save();
             return;
@@ -262,7 +270,7 @@ public class BotConfig {
             // 部分环境下 CLIENT_SPEC.save() 可能在配置尚未绑定时不可用，走文件兜底。
         }
 
-        try {
+        if (Boolean.getBoolean("aibot.allowLegacyCookieConfigSave")) try {
             Path clientPath = FMLPaths.CONFIGDIR.get().resolve("aibot-client.toml");
             CommentedFileConfig clientConfig = CommentedFileConfig.builder(clientPath)
                     .sync()
@@ -278,6 +286,80 @@ public class BotConfig {
             CLIENT.neteaseCookie.set(normalized);
         } catch (Exception e) {
             System.err.println(">>> [Bot] 保存网易云 Cookie 失败: " + e.getMessage());
+        }
+    }
+
+    public static String loadClientCookie() {
+        clearLegacyClientConfigCookie();
+
+        try {
+            Path cookiePath = privateCookiePath();
+            if (!Files.exists(cookiePath)) {
+                CLIENT.neteaseCookie.set("");
+                return "";
+            }
+
+            String cookie = Files.readString(cookiePath, StandardCharsets.UTF_8).trim();
+            CLIENT.neteaseCookie.set(cookie);
+            return cookie;
+        } catch (Exception e) {
+            System.err.println(">>> [Bot] 读取网易云 Cookie 失败: " + e.getMessage());
+            CLIENT.neteaseCookie.set("");
+            return "";
+        }
+    }
+
+    public static void clearClientCookie() {
+        try {
+            Path cookiePath = privateCookiePath();
+            Files.deleteIfExists(cookiePath);
+        } catch (Exception e) {
+            System.err.println(">>> [Bot] 删除网易云 Cookie 失败: " + e.getMessage());
+        }
+
+        CLIENT.neteaseCookie.set("");
+        clearLegacyClientConfigCookie();
+    }
+
+    private static boolean savePrivateClientCookie(String cookie) {
+        try {
+            Path cookiePath = privateCookiePath();
+            Files.createDirectories(cookiePath.getParent());
+            Files.writeString(cookiePath, cookie, StandardCharsets.UTF_8);
+            CLIENT.neteaseCookie.set(cookie);
+            return true;
+        } catch (Exception e) {
+            System.err.println(">>> [Bot] 保存私有网易云 Cookie 失败: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private static Path privateCookiePath() {
+        return FMLPaths.GAMEDIR.get().resolve(".aibot-private").resolve("netease-cookie.txt");
+    }
+
+    private static void clearLegacyClientConfigCookie() {
+        try {
+            Path clientPath = FMLPaths.CONFIGDIR.get().resolve("aibot-client.toml");
+            if (!Files.exists(clientPath)) return;
+
+            try (CommentedFileConfig clientConfig = CommentedFileConfig.builder(clientPath)
+                    .sync()
+                    .writingMode(WritingMode.REPLACE)
+                    .build()) {
+                clientConfig.load();
+                clearLegacyConfigCookie(clientConfig);
+            }
+        } catch (Exception e) {
+            System.err.println(">>> [Bot] 清理旧版网易云 Cookie 失败: " + e.getMessage());
+        }
+    }
+
+    private static void clearLegacyConfigCookie(CommentedFileConfig config) {
+        Object legacyCookie = config.get(Arrays.asList("client", "netease_cookie"));
+        if (legacyCookie instanceof String cookie && !cookie.isBlank()) {
+            config.set("client.netease_cookie", "");
+            config.save();
         }
     }
 }

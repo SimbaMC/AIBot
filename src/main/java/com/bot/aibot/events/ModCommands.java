@@ -42,6 +42,16 @@ public class ModCommands {
                                 })
                         )
                         // 子指令: stop
+                        .then(Commands.literal("logout")
+                                .executes(context -> {
+                                    PacketHandler.sendToPlayer(
+                                            new S2CMusicCommandPacket(S2CMusicCommandPacket.Action.LOGOUT),
+                                            context.getSource().getPlayerOrException()
+                                    );
+                                    context.getSource().sendSuccess(() -> Component.literal("§a[Bot] 已发送网易云退出登录指令"), false);
+                                    return 1;
+                                })
+                        )
                         .then(Commands.literal("stop")
                                 .executes(context -> {
                                     // 发送 STOP 指令
