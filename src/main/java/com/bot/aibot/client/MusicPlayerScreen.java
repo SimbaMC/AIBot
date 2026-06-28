@@ -528,13 +528,8 @@ public class MusicPlayerScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+    public void renderBackground(GuiGraphics guiGraphics) {
         // 禁用 Screen 默认背景渲染（包含模糊路径）
-    }
-
-    @Override
-    public void renderTransparentBackground(GuiGraphics guiGraphics) {
-        // 禁用 Screen 默认透明背景渲染（避免被其他调用触发模糊）
     }
 
     private void renderPlayerLayer(GuiGraphics g, int mx, int my, float pt) {
