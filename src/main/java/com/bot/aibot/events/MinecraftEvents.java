@@ -12,11 +12,14 @@ import net.neoforged.neoforge.event.ServerChatEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.bus.api.SubscribeEvent;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.regex.Pattern;
 
 public class MinecraftEvents {
 
+    private static final Logger LOGGER = LogManager.getLogger();
     private static final Pattern CHINESE_PATTERN = Pattern.compile("[\\u4e00-\\u9fa5]");
 
     public static String formatMsg(String template, String playerName, String message) {
@@ -27,20 +30,47 @@ public class MinecraftEvents {
                 .replace("%msg%", message);
     }
 
+    private static String avoidDuplicatedPlayerPrefix(String template, String playerName, String message) {
+        if (template.contains("%player%") && message != null && message.startsWith(playerName)) {
+            return message.substring(playerName.length());
+        }
+        return message;
+    }
+
     @SubscribeEvent
     public void onChat(ServerChatEvent event) {
         String name = QQBindingManager.getInstance().getChatDisplayName(event.getPlayer());
         String msg = event.getMessage().getString();
+        String normalizedMsg = msg == null ? "" : msg.trim();
+        boolean aiEnabled = BotConfig.SERVER.enableAI.get();
 
-        if (BotConfig.SERVER.enableAI.get()) {
+        LOGGER.info(">>> [Bot AI] 聊天事件: player=" + name + ", aiEnabled=" + aiEnabled + ", rawMsg=" + normalizedMsg);
+
+        if (aiEnabled) {
             String trigger = BotConfig.SERVER.aiTriggerPrefix.get();
-            if (msg.toLowerCase().startsWith(trigger.toLowerCase())) {
-                String question = msg.substring(trigger.length()).trim();
+            String normalizedTrigger = trigger == null ? "" : trigger.trim();
+            if (normalizedTrigger.isEmpty()) {
+                normalizedTrigger = "bot";
+            }
+
+            boolean triggerMatched = normalizedMsg.equalsIgnoreCase(normalizedTrigger)
+                    || normalizedMsg.toLowerCase().startsWith((normalizedTrigger + " ").toLowerCase())
+                    || normalizedMsg.toLowerCase().startsWith((normalizedTrigger + "，").toLowerCase())
+                    || normalizedMsg.toLowerCase().startsWith((normalizedTrigger + ",").toLowerCase())
+                    || normalizedMsg.toLowerCase().startsWith(normalizedTrigger.toLowerCase());
+
+            if (triggerMatched) {
+                String question = normalizedMsg.substring(normalizedTrigger.length()).trim();
                 if (!question.isEmpty()) {
+                    LOGGER.info(">>> [Bot AI] 触发词命中: player=" + name + ", trigger=" + normalizedTrigger + ", question=" + question);
                     LLMClient.chat(event.getPlayer(), question);
+                } else {
+                    LOGGER.info(">>> [Bot AI] 触发词命中但问题为空: player=" + name + ", trigger=" + normalizedTrigger);
                 }
                 return;
             }
+        } else {
+            LOGGER.info(">>> [Bot AI] 已跳过 AI 处理：enable_ai=false");
         }
         if (BotConfig.SERVER.enableChatSync.get()) {
             String template = BotConfig.SERVER.chatMsgFormat.get();
@@ -108,7 +138,6 @@ public class MinecraftEvents {
             if (cached != null) {
                 try {
                     finalMessage = cached.replace("%s", playerName);
-                    System.out.println(">>> [Bot] 缓存命中！");
                 } catch (Exception e) {
                     finalMessage = cached;
                 }
@@ -119,6 +148,7 @@ public class MinecraftEvents {
         }
 
         String template = BotConfig.SERVER.deathMsgFormat.get();
-        BotClient.getInstance().sendMessageToQQ(formatMsg(template, playerName, finalMessage));
+        String normalizedMessage = avoidDuplicatedPlayerPrefix(template, playerName, finalMessage);
+        BotClient.getInstance().sendMessageToQQ(formatMsg(template, playerName, normalizedMessage));
     }
 }

@@ -1,12 +1,18 @@
 package com.bot.aibot.network.packet;
 
 import com.bot.aibot.network.PacketHandler;
+import com.bot.aibot.network.packet.S2CMusicCommandPacket.Action;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import com.bot.aibot.BottyMod;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
+import java.util.function.Supplier;
 
 public class C2SReportMusicPacket {
+    private static final Logger LOGGER = LogManager.getLogger();
     private final String url;
     private final String songName;
     private final long duration;
@@ -33,22 +39,25 @@ public class C2SReportMusicPacket {
         buf.writeBoolean(this.isGlobal); // 【新增】
     }
 
-    public void handle(ServerPlayer sender) {
-        if (sender != null) {
-            System.out.println(">>> [Server] 收到歌曲上报: " + songName + " (全服: " + isGlobal + ")");
-            S2CMusicCommandPacket playPacket = new S2CMusicCommandPacket(
-                    S2CMusicCommandPacket.Action.PLAY_Direct,
-                    url,
-                    duration
-            );
-
-            if (isGlobal) {
-                PacketHandler.sendToAll(playPacket);
-                String msg = "正在全服播放: §a" + songName;
-                sender.getServer().getPlayerList().broadcastSystemMessage(Component.literal(msg), false);
-            } else {
-                PacketHandler.sendToPlayer(playPacket, sender);
-            }
+    public void handle(Supplier<?> ctx) {
+        if (BottyMod.serverInstance == null) {
+            LOGGER.warn(">>> [Packet] 未检测到可用的 Server 实例，广播包无法在当前进程处理。");
+            return;
         }
+        BottyMod.serverInstance.execute(() -> {
+            if (isGlobal) {
+                for (ServerPlayer player : BottyMod.serverInstance.getPlayerList().getPlayers()) {
+                    PacketHandler.sendToPlayer(new S2CMusicCommandPacket(Action.PLAY_Direct, url, duration), player);
+                }
+                BottyMod.serverInstance.getPlayerList().broadcastSystemMessage(
+                        Component.literal("§a[Bot] 正在全服播放: " + songName), false
+                );
+            } else {
+                ServerPlayer first = BottyMod.serverInstance.getPlayerList().getPlayers().stream().findFirst().orElse(null);
+                if (first != null) {
+                    PacketHandler.sendToPlayer(new S2CMusicCommandPacket(Action.PLAY_Direct, url, duration), first);
+                }
+            }
+        });
     }
 }

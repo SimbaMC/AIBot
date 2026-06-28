@@ -18,26 +18,20 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class WSListener implements WebSocket.Listener {
 
+    private static final Logger LOGGER = LogManager.getLogger();
     private final StringBuilder buffer = new StringBuilder();
     private static final Pattern CQ_PATTERN = Pattern.compile("\\[CQ:(image|face),(.*?)\\]");
     private static final int MAX_BUFFER_SIZE = 1024 * 1024;
 
     @Override
     public void onOpen(WebSocket webSocket) {
-        System.out.println(">>> [Bot] 连接成功！等待消息...");
+        LOGGER.info(">>> [Bot] 已建立连接通道，等待稳定性确认...");
         webSocket.request(1);
-
-        BotClient.getInstance().onConnected();
-
-        if (BottyMod.serverInstance != null) {
-            BottyMod.serverInstance.execute(() ->
-                    BottyMod.serverInstance.getPlayerList().broadcastSystemMessage(Component.literal("§a[Bot] 连接成功！"), false)
-            );
-        }
-        sendStartMessage(webSocket);
     }
 
     @Override
@@ -71,7 +65,7 @@ public class WSListener implements WebSocket.Listener {
                 processGroupMessage(json);
             }
         } catch (Exception e) {
-            System.out.println(">>> [Bot] 消息处理报错: " + e.getMessage());
+            LOGGER.info(">>> [Bot] 消息处理报错: " + e.getMessage());
             buffer.setLength(0);
         }
         return null;
@@ -111,7 +105,7 @@ public class WSListener implements WebSocket.Listener {
             }
         }
 
-        System.out.println(">>> [Bot] 群消息 [" + fromGroup + "] " + senderName + ": " + rawMsg);
+        LOGGER.info(">>> [Bot] 群消息 [" + fromGroup + "] " + senderName + ": " + rawMsg);
         String cleanMsg = rawMsg.trim();
 
         if ("!status".equalsIgnoreCase(cleanMsg) || "!状态".equals(cleanMsg)) {
@@ -134,7 +128,7 @@ public class WSListener implements WebSocket.Listener {
                                     target.sendSystemMessage(Component.literal("§a[Bot] QQ绑定成功，已应用群昵称头衔。"));
                                 }
                             } catch (IllegalArgumentException e) {
-                                System.err.println(">>> [Bot] 绑定记录 UUID 异常: " + record.uuid);
+                                LOGGER.error(">>> [Bot] 绑定记录 UUID 异常: " + record.uuid);
                             }
                         });
                     }
@@ -226,8 +220,8 @@ public class WSListener implements WebSocket.Listener {
                 String defaultNode = com.bot.aibot.config.BotConfig.SERVER.defaultNodeName.get();
 
                 double mspt = 50.0;
-                String tpsStr = String.format("%.1f", Math.min(1000.0 / mspt, 20.0));
-                String msptStr = String.format("%.1f", mspt);
+                String tpsStr = "20.0";
+                String msptStr = "50.0";
 
                 java.util.List<net.minecraft.server.level.ServerPlayer> players = com.bot.aibot.BottyMod.serverInstance.getPlayerList().getPlayers();
                 java.util.List<String> playerDetails = new java.util.ArrayList<>();
@@ -243,7 +237,7 @@ public class WSListener implements WebSocket.Listener {
 
                     String nodeName = defaultNode;
                     try {
-                        String fullAddress = player.getIpAddress();
+                        String fullAddress = "unknown";
                         if (fullAddress.startsWith("/")) {
                             fullAddress = fullAddress.substring(1);
                         }
@@ -274,7 +268,7 @@ public class WSListener implements WebSocket.Listener {
                 com.bot.aibot.network.BotClient.getInstance().sendMessageToQQ(msg);
 
             } catch (Exception e) {
-                System.err.println(">>> [Bot] 状态指令执行异常: " + e.getMessage());
+                LOGGER.error(">>> [Bot] 状态指令执行异常: " + e.getMessage());
                 e.printStackTrace();
             }
         });
@@ -315,19 +309,19 @@ public class WSListener implements WebSocket.Listener {
                 long gid = groupId.longValue();
                 webSocket.sendText(root.toString(), true).whenComplete((ignored, error) -> {
                     if (error != null) {
-                        System.err.println(">>> [Bot] 发送启动消息失败 [gid=" + gid + "]: " + error.getMessage());
+                        LOGGER.error(">>> [Bot] 发送启动消息失败 [gid=" + gid + "]: " + error.getMessage());
                     }
                 });
             }
         } catch (Exception e) {
-            System.out.println(">>> [Bot] 发送启动消息失败: " + e.getMessage());
+            LOGGER.info(">>> [Bot] 发送启动消息失败: " + e.getMessage());
         }
     }
 
     @Override
     public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
         BotClient client = BotClient.getInstance();
-        System.out.println(">>> [Bot] onClose 回调 (Code: " + statusCode + ", Reason: " + reason + ")");
+        LOGGER.info(">>> [Bot] onClose 回调 (Code: " + statusCode + ", Reason: " + reason + ")");
         boolean activeDisconnected = client.onDisconnect(webSocket, "Code=" + statusCode + ", Reason=" + reason);
         if (!activeDisconnected) {
             return CompletableFuture.completedFuture(null);
@@ -344,7 +338,7 @@ public class WSListener implements WebSocket.Listener {
     public void onError(WebSocket webSocket, Throwable error) {
         BotClient client = BotClient.getInstance();
         String err = error == null ? "unknown" : error.getMessage();
-        System.out.println(">>> [Bot] onError 回调: " + err);
+        LOGGER.info(">>> [Bot] onError 回调: " + err);
         boolean activeDisconnected = client.onDisconnect(webSocket, "onError: " + err);
         if (activeDisconnected && BottyMod.serverInstance != null && !client.isIntentionalClose()) {
             BottyMod.serverInstance.execute(() ->

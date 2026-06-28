@@ -8,7 +8,7 @@ import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.AdvancementProgress;
 import net.minecraft.advancements.DisplayInfo;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.neoforge.event.entity.player.AdvancementEvent;
+import net.neoforged.neoforge.event.entity.player.AdvancementEvent.AdvancementEarnEvent;
 import net.neoforged.bus.api.SubscribeEvent;
 
 import java.util.Map;
@@ -20,7 +20,7 @@ public class AdvancementEvents {
     private static final Map<String, Long> COOLDOWN_MAP = new ConcurrentHashMap<>();
 
     @SubscribeEvent
-    public void onAdvancement(AdvancementEvent event) {
+    public void onAdvancement(AdvancementEarnEvent event) {
         // 1. 检查总开关
         if (!BotConfig.SERVER.enableAdvancement.get()) return;
 
@@ -40,7 +40,7 @@ public class AdvancementEvents {
         // --- 【修复 1】防重复播报逻辑 ---
         String playerName = player.getName().getString();
         // 组合一个唯一的 Key：玩家名 + 成就ID (例如: Dev:minecraft:story/mine_stone)
-        String uniqueKey = playerName + ":" + adv.id();
+        String uniqueKey = playerName + ":" + adv.id().toString();
         long now = System.currentTimeMillis();
 
         // 如果 1 秒内已经播报过这个成就，直接跳过

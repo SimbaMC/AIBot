@@ -21,8 +21,12 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class ChineseUtils {
+
+    private static final Logger LOGGER = LogManager.getLogger();
     // 静态字典，存所有的翻译
     private static final Map<String, String> TRANSLATIONS = new ConcurrentHashMap<>();
     // 【新增】专门存储 AI 学习到的死亡消息缓存
@@ -35,13 +39,13 @@ public class ChineseUtils {
     public static void load() {
         TRANSLATIONS.clear(); // 重载前清空，防止重复
         AI_CACHE.clear(); // 清空缓存
-        System.out.println(">>> [Bot] 开始全自动加载语言文件...");
+        LOGGER.info(">>> [Bot] 开始全自动加载语言文件...");
         int count = 0;
 
         // 获取所有已加载的“模组”（包括 Minecraft 原版！）
         List<IModInfo> mods = ModList.get().getMods();
 
-        System.out.println(">>> [Bot] 扫描目标列表长度: " + mods.size());
+        LOGGER.info(">>> [Bot] 扫描目标列表长度: " + mods.size());
 
         for (IModInfo mod : mods) {
             String modId = mod.getModId();
@@ -58,13 +62,13 @@ public class ChineseUtils {
         // 【新增】加载 AI 学习到的缓存文件
         loadAICache();
 
-        System.out.println(">>> [Bot] 汉化加载完成！当前字典总条目数: " + TRANSLATIONS.size() + " (本次加载: " + count + ")");
+        LOGGER.info(">>> [Bot] 汉化加载完成！当前字典总条目数: " + TRANSLATIONS.size() + " (本次加载: " + count + ")");
 
         // 打印几个关键 Key 验证一下原版是否进来了
         if (TRANSLATIONS.containsKey("death.attack.anvil")) {
-            System.out.println(">>> [Bot] ✅ 原版汉化验证通过: death.attack.anvil -> " + TRANSLATIONS.get("death.attack.anvil"));
+            LOGGER.info(">>> [Bot] ✅ 原版汉化验证通过: death.attack.anvil -> " + TRANSLATIONS.get("death.attack.anvil"));
         } else {
-            System.out.println(">>> [Bot] ❌ 警告: 未检测到原版汉化，可能是服务器核心 Jar 包里不包含中文文件。");
+            LOGGER.info(">>> [Bot] ❌ 警告: 未检测到原版汉化，可能是服务器核心 Jar 包里不包含中文文件。");
         }
     }
     // --- 新增：AI 缓存读写逻辑 ---
@@ -79,11 +83,11 @@ public class ChineseUtils {
                     for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
                         AI_CACHE.put(entry.getKey(), entry.getValue().getAsString());
                     }
-                    System.out.println(">>> [Bot] 🧠 已载入 " + AI_CACHE.size() + " 条 AI 学习记录");
+                    LOGGER.info(">>> [Bot] 🧠 已载入 " + AI_CACHE.size() + " 条 AI 学习记录");
                 }
             }
         } catch (Exception e) {
-            System.out.println(">>> [Bot] 读取 AI 缓存失败: " + e.getMessage());
+            LOGGER.info(">>> [Bot] 读取 AI 缓存失败: " + e.getMessage());
         }
     }
     /**
@@ -114,7 +118,7 @@ public class ChineseUtils {
                 try (Writer writer = Files.newBufferedWriter(CACHE_FILE_PATH, StandardCharsets.UTF_8)) {
                     GSON.toJson(json, writer);
                 }
-                System.out.println(">>> [Bot] 🧠 新知识已归档: " + originalKey);
+                LOGGER.info(">>> [Bot] 🧠 新知识已归档: " + originalKey);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -166,7 +170,7 @@ public class ChineseUtils {
                 }
                 // 只打印原版和大量数据的模组，避免刷屏
                 if (loaded > 100 || "minecraft".equals(modId)) {
-                    System.out.println(">>> [Bot] 📚 从 [" + modId + "] 吸入汉化: " + loaded + " 条");
+                    LOGGER.info(">>> [Bot] 📚 从 [" + modId + "] 吸入汉化: " + loaded + " 条");
                 }
             }
         } catch (Exception e) {
@@ -187,7 +191,7 @@ public class ChineseUtils {
                         loaded++;
                     }
                 }
-                System.out.println(">>> [Bot] 🛠️ 加载本地补丁: " + loaded + " 条");
+                LOGGER.info(">>> [Bot] 🛠️ 加载本地补丁: " + loaded + " 条");
             }
         } catch (Exception e) {}
         return loaded;
@@ -218,10 +222,6 @@ public class ChineseUtils {
                 return component.getString(); // 格式化失败回退
             }
         }
-        StringBuilder sb = new StringBuilder(component.getString());
-        for (Component sibling : component.getSiblings()) {
-            sb.append(translate(sibling));
-        }
-        return sb.toString();
+        return component.getString();
     }
 }

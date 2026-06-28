@@ -13,39 +13,51 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.ModLoadingContext;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
+import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.ModContainer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @Mod("aibot")
 public class BottyMod {
 
+    private static final Logger LOGGER = LogManager.getLogger();
+
     public static MinecraftServer serverInstance;
 
-    public BottyMod() {
-        System.out.println(">>> [Bot] BottyMod constructor invoked");
+    public BottyMod(IEventBus modBus, ModContainer modContainer) {
         // 注册配置
+        modContainer.registerConfig(ModConfig.Type.COMMON, BotConfig.SERVER_SPEC);
+        modContainer.registerConfig(ModConfig.Type.CLIENT, BotConfig.CLIENT_SPEC);
 
         // 注册事件
         NeoForge.EVENT_BUS.register(this);
         NeoForge.EVENT_BUS.register(new MinecraftEvents());
-        ModCommands modCommands = new ModCommands();
-        NeoForge.EVENT_BUS.register(modCommands);
-        NeoForge.EVENT_BUS.addListener(modCommands::onRegisterCommands);
+        NeoForge.EVENT_BUS.register(new ModCommands());
         NeoForge.EVENT_BUS.register(new AdvancementEvents());
 
         // 注册网络包
         PacketHandler.register();
 
-        // 客户端侧初始化（兼容 NeoForge API 变更）
-        NeteaseApi.loadCookies();
+        // 注册客户端初始化事件
+        modBus.addListener(this::doClientStuff);
+    }
+
+    private void doClientStuff(final FMLClientSetupEvent event) {
+        event.enqueueWork(() -> {
+            LOGGER.info(">>> [Bot] Client Setup...");
+            NeteaseApi.loadCookies();
+        });
     }
 
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
         serverInstance = event.getServer();
         ChineseUtils.load();
-        System.out.println(">>> [Bot] Starting Network...");
+        LOGGER.info(">>> [Bot] Starting Network...");
         BotClient.getInstance().connect();
     }
 

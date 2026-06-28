@@ -1,6 +1,5 @@
 plugins {
-    id 'eclipse'
-    id 'idea'
+    id 'java-library'
     id 'maven-publish'
     id 'net.neoforged.moddev' version '2.0.78'
     id 'com.gradleup.shadow' version '8.3.5'
@@ -9,43 +8,92 @@ plugins {
 version = mod_version
 group = mod_group_id
 
-base { archivesName = mod_id }
+base {
+    archivesName = mod_id
+}
+
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 neoForge {
-    version = project.neo_version
+    version = neo_version
+
+    parchment {
+        minecraftVersion = parchment_minecraft
+        mappingsVersion = parchment_version
+    }
+
     runs {
-        client { client() }
-        server { server(); programArgument '--nogui' }
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            systemProperty 'forge.logging.console.level', 'debug'
+            jvmArgument '-Dfile.encoding=UTF-8'
+        }
+
+        client {
+            type = "client"
+            gameDirectory = project.file('run/client')
+            systemProperty 'forge.enabledGameTestNamespaces', mod_id
+        }
+
+        server {
+            type = "server"
+            gameDirectory = project.file('run')
+            systemProperty 'forge.enabledGameTestNamespaces', mod_id
+            programArgument '--nogui'
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
     }
 }
 
-repositories { mavenCentral() }
+sourceSets.main.resources { srcDir 'src/generated/resources' }
 
+repositories {
+    mavenCentral()
+    maven {
+        url "https://www.cursemaven.com"
+        content { includeGroup "curse.maven" }
+    }
+}
 configurations {
+    bundledLibs
     shade
-    implementation.extendsFrom shade
+    implementation.extendsFrom shade, bundledLibs
 }
 
 dependencies {
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
-    shade 'javazoom:jlayer:1.0.1'
+    bundledLibs 'javazoom:jlayer:1.0.1'
+    implementation 'javazoom:jlayer:1.0.1'
+    jarJar(implementation('javazoom:jlayer:1.0.1'))
 }
+
+def unpackedJlayerDir = layout.buildDirectory.dir("generated/jlayer-classes")
+tasks.register('unpackJlayer', Copy) {
+    from {
+        configurations.bundledLibs.collect { zipTree(it) }
+    }
+    include 'javazoom/jl/**'
+    into unpackedJlayerDir
+}
+sourceSets.main.output.dir(unpackedJlayerDir, builtBy: tasks.named('unpackJlayer'))
+tasks.named('classes').configure { dependsOn(tasks.named('unpackJlayer')) }
 
 tasks.named('shadowJar', com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar).configure {
     archiveClassifier = ''
     configurations = [project.configurations.shade]
-    relocate 'javazoom.jl', 'com.bot.aibot.shadow.javazoom.jl'
     exclude 'META-INF/maven/**'
     exclude 'META-INF/LICENSE*'
     mergeServiceFiles()
 }
 
-tasks.processResources {
+tasks.named('processResources', ProcessResources).configure {
     var replaceProperties = [
-            minecraft_version: minecraft_version,
-            minecraft_version_range: minecraft_version_range,
-            neo_version_range: neo_version_range,
+            minecraft_version: minecraft_version, minecraft_version_range: minecraft_version_range,
+            neo_version: neo_version, neo_version_range: neo_version_range,
             loader_version_range: loader_version_range,
             mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
             mod_authors: mod_authors, mod_description: mod_description,
@@ -56,6 +104,23 @@ tasks.processResources {
     }
 }
 
+tasks.named('jar', Jar).configure {
+    archiveClassifier = 'slim'
+    manifest {
+        attributes([
+                'Specification-Title'     : mod_id,
+                'Specification-Vendor'    : mod_authors,
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : project.name,
+                'Implementation-Version'  : project.jar.archiveVersion,
+                'Implementation-Vendor'   : mod_authors,
+                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:ss?Z")
+        ])
+    }
+}
+
 tasks.build.dependsOn tasks.shadowJar
 
-tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}

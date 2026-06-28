@@ -7,11 +7,10 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.neoforge.client.event.InputEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.common.EventBusSubscriber;
 
 // 标记为客户端专用事件处理类
-@EventBusSubscriber(modid = "aibot", value = Dist.CLIENT, bus = EventBusSubscriber.Bus.GAME)
+@EventBusSubscriber(modid = "aibot", value = Dist.CLIENT)
 public class ModClientEvents {
 
     // 1. 在 Mod 总线注册按键 (游戏启动时执行)
