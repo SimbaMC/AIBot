@@ -13,7 +13,7 @@ import com.bot.aibot.ai.LLMClient;
 import com.bot.aibot.binding.QQBindingManager;
 import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.network.BotClient;
-import com.bot.aibot.network.WSListener;
+import com.bot.aibot.network.ServerTaskQueue;
 import com.bot.aibot.utils.ChineseUtils;
 
 import cpw.mods.fml.common.eventhandler.EventPriority;
@@ -27,7 +27,7 @@ public class MinecraftEvents {
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public void onServerTick(TickEvent.ServerTickEvent event) {
-        if (event.phase == TickEvent.Phase.START) WSListener.runServerTasks();
+        if (event.phase == TickEvent.Phase.START) ServerTaskQueue.runPending();
     }
 
     public static String formatMsg(String template, String playerName, String message) {

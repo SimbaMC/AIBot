@@ -11,6 +11,8 @@ import io.netty.buffer.ByteBuf;
 
 public class S2CMusicCommandPacket implements IMessage {
 
+    private static final int MAX_DATA_BYTES = 8192;
+
     public enum Action {
         PLAY_Direct,
         STOP,
@@ -37,8 +39,13 @@ public class S2CMusicCommandPacket implements IMessage {
     }
 
     public void fromBytes(ByteBuf buf) {
-        action = Action.values()[buf.readInt()];
+        int actionId = buf.readInt();
+        if (actionId < 0 || actionId >= Action.values().length)
+            throw new IllegalArgumentException("Unknown music action: " + actionId);
+        action = Action.values()[actionId];
         int n = buf.readInt();
+        if (n < 0 || n > MAX_DATA_BYTES || n > buf.readableBytes() - Long.BYTES)
+            throw new IllegalArgumentException("Invalid music payload length: " + n);
         byte[] b = new byte[n];
         buf.readBytes(b);
         data = new String(b, StandardCharsets.UTF_8);
@@ -47,6 +54,8 @@ public class S2CMusicCommandPacket implements IMessage {
 
     public void toBytes(ByteBuf buf) {
         byte[] b = data.getBytes(StandardCharsets.UTF_8);
+        if (b.length > MAX_DATA_BYTES)
+            throw new IllegalArgumentException("Music payload exceeds " + MAX_DATA_BYTES + " bytes");
         buf.writeInt(action.ordinal());
         buf.writeInt(b.length);
         buf.writeBytes(b);

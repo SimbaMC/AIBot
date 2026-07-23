@@ -6,8 +6,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -28,7 +26,6 @@ import com.google.gson.JsonParser;
 public final class WSListener {
 
     private static final Pattern CQ_PATTERN = Pattern.compile("\\[CQ:([^,\\]]+),([^\\]]*)\\]");
-    private static final Queue<Runnable> SERVER_TASKS = new ConcurrentLinkedQueue<Runnable>();
 
     private WSListener() {}
 
@@ -83,7 +80,7 @@ public final class WSListener {
                 } else {
                     BotClient.getInstance()
                         .sendMessageToQQ("[绑定成功] " + record.playerName + " 已绑定为 " + record.groupNickname);
-                    SERVER_TASKS.add(new Runnable() {
+                    ServerTaskQueue.submit(new Runnable() {
 
                         public void run() {
                             EntityPlayerMP player = findPlayer(record.uuid);
@@ -96,7 +93,16 @@ public final class WSListener {
                 }
                 return;
             }
-            if (BotConfig.enableChatSync && BottyMod.serverInstance != null) broadcastQqMessage(name, raw);
+            if (BotConfig.enableChatSync && BottyMod.serverInstance != null) {
+                final String senderName = name;
+                final String message = raw;
+                ServerTaskQueue.submit(new Runnable() {
+
+                    public void run() {
+                        broadcastQqMessage(senderName, message);
+                    }
+                });
+            }
         } catch (Exception e) {
             BottyMod.LOG.warn(">>> [Bot] OneBot 消息解析失败: " + e.getMessage());
         }
@@ -164,7 +170,7 @@ public final class WSListener {
     private static void handleStatusCommand() {
         final MinecraftServer server = BottyMod.serverInstance;
         if (server == null) return;
-        SERVER_TASKS.add(new Runnable() {
+        ServerTaskQueue.submit(new Runnable() {
 
             public void run() {
                 try {
@@ -208,11 +214,6 @@ public final class WSListener {
         });
     }
 
-    public static void processServerTasks() {
-        Runnable task;
-        while ((task = SERVER_TASKS.poll()) != null) task.run();
-    }
-
     private static Map<String, String> parseNodeMappings() {
         Map<String, String> result = new HashMap<String, String>();
         for (String mapping : BotConfig.nodeMappings) {
@@ -245,17 +246,6 @@ public final class WSListener {
         long total = 0L;
         for (long value : values) total += value;
         return (double) total / values.length;
-    }
-
-    public static void runServerTasks() {
-        Runnable task;
-        while ((task = SERVER_TASKS.poll()) != null) {
-            try {
-                task.run();
-            } catch (Exception e) {
-                BottyMod.LOG.error(">>> [Bot] 主线程任务执行异常", e);
-            }
-        }
     }
 
     private static String extractValue(String params, String key) {

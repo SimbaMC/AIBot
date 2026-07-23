@@ -1,3 +1,9 @@
+1.0.2-gtnh284
+- Fixed dedicated-server achievement crashes by removing the client-only achievement description API call.
+- Routed WebSocket and AI callbacks through the server tick thread.
+- Removed unused client-to-server music packet endpoints that allowed unauthorized global playback and arbitrary URLs.
+- Added strict bounds to the remaining server-to-client music packet decoder.
+
 1.0.1-gtnh284
 - Restored all player-facing prefixes and Chinese default message templates from the Forge 1.20.1 release.
 - Restored QQ binding prompts, confirmation feedback, chat names, and tab-list nickname titles.

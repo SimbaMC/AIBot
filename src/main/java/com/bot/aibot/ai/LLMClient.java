@@ -9,6 +9,7 @@ import net.minecraft.util.ChatComponentText;
 import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.events.MinecraftEvents;
 import com.bot.aibot.network.BotClient;
+import com.bot.aibot.network.ServerTaskQueue;
 import com.bot.aibot.utils.ChineseUtils;
 import com.bot.aibot.utils.HttpUtils;
 import com.google.gson.JsonArray;
@@ -24,7 +25,12 @@ public final class LLMClient {
         request(BotConfig.aiPrompt, question, new Callback() {
 
             public void done(final String reply) {
-                player.addChatMessage(new ChatComponentText("§a[Bot] " + reply));
+                ServerTaskQueue.submit(new Runnable() {
+
+                    public void run() {
+                        player.addChatMessage(new ChatComponentText("§a[Bot] " + reply));
+                    }
+                });
             }
         });
     }

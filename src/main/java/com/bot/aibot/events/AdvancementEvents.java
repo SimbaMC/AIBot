@@ -17,8 +17,7 @@ public class AdvancementEvents {
             .replace(
                 "%advancement%",
                 event.achievement.func_150951_e()
-                    .getUnformattedText())
-            .replace("%desc%", event.achievement.getDescription());
+                    .getUnformattedText());
         BotClient.getInstance()
             .sendMessageToQQ(message);
     }

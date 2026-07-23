@@ -2,8 +2,6 @@ package com.bot.aibot.network;
 
 import net.minecraft.entity.player.EntityPlayerMP;
 
-import com.bot.aibot.network.packet.C2SMusicActionPacket;
-import com.bot.aibot.network.packet.C2SReportMusicPacket;
 import com.bot.aibot.network.packet.S2CMusicCommandPacket;
 
 import cpw.mods.fml.common.network.NetworkRegistry;
@@ -17,9 +15,7 @@ public final class PacketHandler {
     private PacketHandler() {}
 
     public static void register() {
-        INSTANCE.registerMessage(C2SReportMusicPacket.Handler.class, C2SReportMusicPacket.class, 0, Side.SERVER);
-        INSTANCE.registerMessage(C2SMusicActionPacket.Handler.class, C2SMusicActionPacket.class, 1, Side.SERVER);
-        INSTANCE.registerMessage(S2CMusicCommandPacket.Handler.class, S2CMusicCommandPacket.class, 2, Side.CLIENT);
+        INSTANCE.registerMessage(S2CMusicCommandPacket.Handler.class, S2CMusicCommandPacket.class, 0, Side.CLIENT);
     }
 
     public static void sendToPlayer(S2CMusicCommandPacket message, EntityPlayerMP player) {
@@ -30,7 +26,4 @@ public final class PacketHandler {
         INSTANCE.sendToAll(message);
     }
 
-    public static void sendToServer(Object message) {
-        INSTANCE.sendToServer((cpw.mods.fml.common.network.simpleimpl.IMessage) message);
-    }
 }

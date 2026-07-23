@@ -118,8 +118,14 @@ public final class BotClient {
     }
 
     private static void broadcast(String text) {
-        if (BottyMod.serverInstance != null && BottyMod.serverInstance.getConfigurationManager() != null)
-            BottyMod.serverInstance.getConfigurationManager()
-                .sendChatMsg(new ChatComponentText(text));
+        final String message = text;
+        ServerTaskQueue.submit(new Runnable() {
+
+            public void run() {
+                if (BottyMod.serverInstance != null && BottyMod.serverInstance.getConfigurationManager() != null)
+                    BottyMod.serverInstance.getConfigurationManager()
+                        .sendChatMsg(new ChatComponentText(message));
+            }
+        });
     }
 }
