@@ -3,41 +3,32 @@ package com.bot.aibot.network;
 import com.bot.aibot.network.packet.C2SReportMusicPacket;
 import com.bot.aibot.network.packet.S2CMusicCommandPacket;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.fml.loading.FMLEnvironment;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
+import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
-public class PacketHandler {
-    private static final Logger LOGGER = LogManager.getLogger();
-    public static void register() {}
-    public static <MSG> void sendToPlayer(MSG message, ServerPlayer player) {
-        if (message instanceof S2CMusicCommandPacket musicPacket) {
-            if (FMLEnvironment.dist == Dist.CLIENT) {
-                try {
-                    Class<?> minecraftClass = Class.forName("net.minecraft.client.Minecraft");
-                    Object mc = minecraftClass.getMethod("getInstance").invoke(null);
-                    if (mc != null) {
-                        Class<?> actionClass = Class.forName("com.bot.aibot.network.packet.S2CMusicCommandPacket$Action");
-                        Class<?> handlerClass = Class.forName("com.bot.aibot.client.ClientPacketHandler");
-                        handlerClass.getMethod("handle", actionClass, String.class, long.class)
-                                .invoke(null, musicPacket.getAction(), musicPacket.getData(), musicPacket.getExtra());
-                    }
-                } catch (Exception e) {
-                    LOGGER.error(">>> [Packet] 客户端处理播放包失败: {}", e.getMessage());
-                }
-            }
-            return;
-        }
-        LOGGER.warn(">>> [Packet] sendToPlayer 未处理的数据包类型: {}", message == null ? "null" : message.getClass().getSimpleName());
+public final class PacketHandler {
+    private static final String PROTOCOL_VERSION = "1";
+
+    private PacketHandler() {}
+
+    public static void register(RegisterPayloadHandlersEvent event) {
+        PayloadRegistrar registrar = event.registrar(PROTOCOL_VERSION);
+        registrar.playToServer(C2SReportMusicPacket.TYPE, C2SReportMusicPacket.STREAM_CODEC,
+                C2SReportMusicPacket::handle);
+        registrar.playToClient(S2CMusicCommandPacket.TYPE, S2CMusicCommandPacket.STREAM_CODEC,
+                S2CMusicCommandPacket::handle);
     }
-    public static <MSG> void sendToServer(MSG message) {
-        if (message instanceof C2SReportMusicPacket reportMusicPacket) {
-            LOGGER.warn(">>> [Packet] 使用迁移期本地桥接 sendToServer（仅同进程可用，独立 Client/Server 无法互通）");
-            reportMusicPacket.handle(() -> null);
-            return;
-        }
-        LOGGER.warn(">>> [Packet] sendToServer 未实现（迁移中）: {}", message == null ? "null" : message.getClass().getSimpleName());
+
+    public static void sendToPlayer(S2CMusicCommandPacket message, ServerPlayer player) {
+        PacketDistributor.sendToPlayer(player, message);
     }
-    public static <MSG> void sendToAll(MSG message) {}
+
+    public static void sendToServer(C2SReportMusicPacket message) {
+        PacketDistributor.sendToServer(message);
+    }
+
+    public static void sendToAll(S2CMusicCommandPacket message) {
+        PacketDistributor.sendToAllPlayers(message);
+    }
 }

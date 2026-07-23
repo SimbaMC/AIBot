@@ -1,74 +1,57 @@
 package com.bot.aibot.network.packet;
 
-import com.bot.aibot.client.ClientPacketHandler;
+import com.bot.aibot.network.PacketStrings;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 
-import java.util.function.Supplier;
+import java.nio.charset.StandardCharsets;
 
-/**
- * 服务端 -> 客户端
- * 统一音乐指令包：包含播放、搜索、控制、GUI操作等所有指令
- */
-public class S2CMusicCommandPacket {
+public record S2CMusicCommandPacket(Action action, String data, long extra) implements CustomPacketPayload {
+    public enum Action { PLAY_DIRECT, STOP, SEARCH_AND_PLAY, OPEN_GUI, PLAY_MY_LIKE, RESET_COOLDOWN }
 
-    // 定义指令动作枚举
-    public enum Action {
-        PLAY_Direct,    // 直接播放 (参数: URL)
-        STOP,           // 停止/暂停 (参数: 无)
-        SEARCH_AND_PLAY,// 搜索并播放 (参数: 关键词)
-        OPEN_GUI,       // 打开播放器界面 (参数: 无)
-        PLAY_MY_LIKE,
-        RESET_COOLDOWN// 【新增】随机播放我的红心歌单 (参数: 无)
+    public static final Type<S2CMusicCommandPacket> TYPE = new Type<>(
+            ResourceLocation.fromNamespaceAndPath("aibot", "music_command"));
+    public static final StreamCodec<FriendlyByteBuf, S2CMusicCommandPacket> STREAM_CODEC =
+            StreamCodec.of(S2CMusicCommandPacket::encode, S2CMusicCommandPacket::decode);
+
+    public S2CMusicCommandPacket(Action action) { this(action, "", 0); }
+    public S2CMusicCommandPacket(Action action, String data) { this(action, data, 0); }
+    public S2CMusicCommandPacket { validate(action, data, extra); }
+
+    private static S2CMusicCommandPacket decode(FriendlyByteBuf buffer) {
+        int actionId = buffer.readVarInt();
+        if (actionId < 0 || actionId >= Action.values().length) throw new IllegalArgumentException("Invalid music action");
+        return new S2CMusicCommandPacket(Action.values()[actionId],
+                PacketStrings.readUtf8(buffer, 2048, 2048), buffer.readLong());
     }
 
-    private final Action action;
-    private final String data;   // 泛用数据字段 (URL, 关键词, 或者空)
-    private final long extra;    // 额外数据 (如时长, 或者是 bool 标志位)
-
-    // 构造函数 1: 基础指令
-    public S2CMusicCommandPacket(Action action) {
-        this(action, "", 0);
+    private static void encode(FriendlyByteBuf buffer, S2CMusicCommandPacket packet) {
+        validate(packet.action, packet.data, packet.extra);
+        buffer.writeVarInt(packet.action.ordinal());
+        PacketStrings.writeUtf8(buffer, packet.data, 2048, 2048);
+        buffer.writeLong(packet.extra);
     }
 
-    // 构造函数 2: 带数据的指令 (如搜索)
-    public S2CMusicCommandPacket(Action action, String data) {
-        this(action, data, 0);
+    public static void handle(S2CMusicCommandPacket packet, IPayloadContext context) {
+        context.enqueueWork(() -> ClientPayloadBridge.handle(packet));
     }
 
-    // 全参构造
-    public S2CMusicCommandPacket(Action action, String data, long extra) {
-        this.action = action;
-        this.data = data;
-        this.extra = extra;
+    private static void validate(Action action, String data, long extra) {
+        if (action == null || data == null || data.getBytes(StandardCharsets.UTF_8).length > 2048)
+            throw new IllegalArgumentException("Invalid music command");
+        if (action == Action.PLAY_DIRECT && (data.isEmpty() || extra <= 0 || extra > 86_400_000L))
+            throw new IllegalArgumentException("Invalid direct-play command");
+        if ((action == Action.SEARCH_AND_PLAY || action == Action.PLAY_MY_LIKE)
+                && data.getBytes(StandardCharsets.UTF_8).length > 256)
+            throw new IllegalArgumentException("Music command data too long");
+        if (action == Action.SEARCH_AND_PLAY && extra != 0 && extra != 1)
+            throw new IllegalArgumentException("Invalid search mode");
+        if (action != Action.PLAY_DIRECT && action != Action.SEARCH_AND_PLAY && extra != 0)
+            throw new IllegalArgumentException("Unexpected music command data");
     }
 
-    // 解码 (从 ByteBuf 读取)
-    public S2CMusicCommandPacket(FriendlyByteBuf buf) {
-        this.action = buf.readEnum(Action.class);
-        this.data = buf.readUtf();
-        this.extra = buf.readLong();
-    }
-
-    // 编码 (写入 ByteBuf)
-    public void encode(FriendlyByteBuf buf) {
-        buf.writeEnum(this.action);
-        buf.writeUtf(this.data);
-        buf.writeLong(this.extra);
-    }
-
-    // 处理逻辑 (转发给 ClientPacketHandler)
-    public static void handle(S2CMusicCommandPacket msg, Supplier<?> ctx) {
-    }
-
-    public Action getAction() {
-        return action;
-    }
-
-    public String getData() {
-        return data;
-    }
-
-    public long getExtra() {
-        return extra;
-    }
+    @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
 }

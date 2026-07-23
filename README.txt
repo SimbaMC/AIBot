@@ -1,6 +1,16 @@
 
 Source installation information for modders
 -------------------------------------------
+AiBot 1.5.0 for NeoForge / Minecraft 1.21.1
+--------------------------------------------
+Netease account lookup and cookies remain client-only. The server receives only
+bounded song metadata and a resolved playback URL, then validates strict HTTPS
+label-boundary subdomains of music.126.net and every DNS result. Private playback
+returns only to the authenticated sender; global playback uses a server-authoritative
+cooldown. The client disables automatic redirects and validates every redirect.
+The HTTPS implementation performs another DNS lookup while connecting, leaving a
+small DNS time-of-check/time-of-use window without changing global JVM DNS behavior.
+
 This code follows the Minecraft Forge installation methodology. It will apply
 some small patches to the vanilla MCP source code, giving you and it access 
 to some of the data and functions you need to build a successful mod.

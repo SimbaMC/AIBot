@@ -1059,3 +1059,11 @@
             Co-authored-by: Curle <curle@gemwire.uk>
             Co-authored-by: sciwhiz12 <arnoldnunag12@gmail.com>
 
+1.21.1 NeoForge Changelog
+AiBot 1.5.0
+============
+ - Restored functional NeoForge 1.21.1 custom-payload networking and full music behavior.
+ - Kept Netease cookies client-only and relayed only bounded resolved URLs/song metadata.
+ - Added strict HTTPS music.126.net and public DNS validation on server and every client redirect.
+ - Added bounded asynchronous validation, authenticated sender recheck, and global server cooldown.
+ - Removed the unused global STOP C2S packet; added timeouts, redirect limits, and connection cleanup.

@@ -28,7 +28,7 @@ public class ClientPacketHandler {
         }
 
         // 2. 直接播放指令 (URL)
-        if (action == S2CMusicCommandPacket.Action.PLAY_Direct) {
+        if (action == S2CMusicCommandPacket.Action.PLAY_DIRECT) {
             String url = data;
             // extra 此时作为 duration
             if (!url.equals(MusicPlayerScreen.EXPECTED_URL)) {

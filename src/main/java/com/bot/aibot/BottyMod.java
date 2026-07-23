@@ -6,6 +6,7 @@ import com.bot.aibot.events.MinecraftEvents;
 import com.bot.aibot.events.ModCommands;
 import com.bot.aibot.network.BotClient;
 import com.bot.aibot.network.PacketHandler;
+import com.bot.aibot.security.MusicReportService;
 import com.bot.aibot.utils.ChineseUtils;
 import com.bot.aibot.utils.NeteaseApi;
 import net.minecraft.server.MinecraftServer;
@@ -16,6 +17,8 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
+import net.neoforged.fml.loading.FMLEnvironment;
+import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import org.apache.logging.log4j.LogManager;
@@ -40,10 +43,10 @@ public class BottyMod {
         NeoForge.EVENT_BUS.register(new AdvancementEvents());
 
         // 注册网络包
-        PacketHandler.register();
+        modBus.addListener(PacketHandler::register);
 
         // 注册客户端初始化事件
-        modBus.addListener(this::doClientStuff);
+        if (FMLEnvironment.dist == Dist.CLIENT) modBus.addListener(this::doClientStuff);
     }
 
     private void doClientStuff(final FMLClientSetupEvent event) {
@@ -64,5 +67,7 @@ public class BottyMod {
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
         BotClient.getInstance().close("Server Stopping");
+        MusicReportService.shutdown();
+        serverInstance = null;
     }
 }
