@@ -7,13 +7,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.bot.aibot.config.BotConfig;
+import com.bot.aibot.events.AdvancementEvents;
 import com.bot.aibot.events.MinecraftEvents;
 import com.bot.aibot.events.ModCommands;
+import com.bot.aibot.events.QQBindCommand;
 import com.bot.aibot.network.BotClient;
 import com.bot.aibot.network.PacketHandler;
 import com.bot.aibot.proxy.CommonProxy;
 import com.bot.aibot.utils.ChineseUtils;
 
+import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.Mod;
 import cpw.mods.fml.common.Mod.EventHandler;
 import cpw.mods.fml.common.SidedProxy;
@@ -37,7 +40,12 @@ public class BottyMod {
         configDirectory = event.getModConfigurationDirectory();
         BotConfig.init(event.getModConfigurationDirectory());
         PacketHandler.register();
-        MinecraftForge.EVENT_BUS.register(new MinecraftEvents());
+        MinecraftEvents events = new MinecraftEvents();
+        MinecraftForge.EVENT_BUS.register(events);
+        MinecraftForge.EVENT_BUS.register(new AdvancementEvents());
+        FMLCommonHandler.instance()
+            .bus()
+            .register(events);
         proxy.preInit();
     }
 
@@ -50,6 +58,7 @@ public class BottyMod {
     public void serverStarting(FMLServerStartingEvent event) {
         serverInstance = event.getServer();
         event.registerServerCommand(new ModCommands());
+        event.registerServerCommand(new QQBindCommand());
         ChineseUtils.load();
         BotClient.getInstance()
             .connect();

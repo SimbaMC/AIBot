@@ -13,8 +13,10 @@ import java.util.Map;
 
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.event.ClickEvent;
+import net.minecraft.event.HoverEvent;
 import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.ChatStyle;
+import net.minecraft.util.IChatComponent;
 
 import com.bot.aibot.BottyMod;
 import com.bot.aibot.network.BotClient;
@@ -50,7 +52,7 @@ public final class QQBindingManager {
             reader.close();
             if (value != null) records.putAll(value);
         } catch (Exception e) {
-            BottyMod.LOG.error("Cannot load QQ bindings", e);
+            BottyMod.LOG.error(">>> [Bot] 读取 QQ 绑定缓存失败", e);
         }
     }
 
@@ -60,45 +62,67 @@ public final class QQBindingManager {
             new Gson().toJson(records, writer);
             writer.close();
         } catch (Exception e) {
-            BottyMod.LOG.error("Cannot save QQ bindings", e);
+            BottyMod.LOG.error(">>> [Bot] 保存 QQ 绑定缓存失败", e);
         }
     }
 
     public synchronized void requestBind(EntityPlayerMP player, long qq) {
         load();
-        BindingRecord r = new BindingRecord();
-        r.playerName = player.getCommandSenderName();
-        r.uuid = player.getUniqueID()
+        BindingRecord record = records.get(
+            player.getUniqueID()
+                .toString());
+        if (record == null) record = new BindingRecord();
+        record.playerName = player.getCommandSenderName();
+        record.uuid = player.getUniqueID()
             .toString();
-        r.qq = qq;
-        records.put(r.uuid, r);
+        record.qq = qq;
+        record.confirmed = false;
+        if (record.groupNickname == null) record.groupNickname = "";
+        records.put(record.uuid, record);
         save();
         BotClient.getInstance()
-            .sendMessageToQQ("[绑定请求] [CQ:at,qq=" + qq + "] reply !bind " + r.playerName);
+            .sendMessageToQQ("[绑定请求] [CQ:at,qq=" + qq + "] 请在群内回复 !bind " + record.playerName + " 确认绑定 Minecraft 角色。");
+        player.addChatMessage(new ChatComponentText("§a[Bot] 已发起绑定请求，请到QQ群内回复 !bind " + record.playerName + " 完成确认。"));
     }
 
-    public synchronized void confirmBind(String player, long qq, String nickname) {
+    public synchronized BindingRecord confirmBind(String player, long qq, String nickname) {
         load();
-        for (BindingRecord r : records.values())
-            if (!r.confirmed && r.qq == qq && r.playerName.equalsIgnoreCase(player)) {
-                r.confirmed = true;
-                r.groupNickname = sanitize(nickname);
+        for (BindingRecord record : records.values()) if (!record.confirmed && record.qq == qq
+            && record.playerName != null
+            && record.playerName.equalsIgnoreCase(player)) {
+                record.confirmed = true;
+                record.groupNickname = sanitize(nickname);
                 save();
-                BotClient.getInstance()
-                    .sendMessageToQQ("[绑定成功] " + r.playerName + " -> " + r.groupNickname);
-                return;
+                return record;
             }
-        BotClient.getInstance()
-            .sendMessageToQQ("[绑定失败] 请先在游戏内执行 /qqbind QQ号");
+        return null;
+    }
+
+    public synchronized boolean isConfirmed(EntityPlayerMP player) {
+        load();
+        BindingRecord record = records.get(
+            player.getUniqueID()
+                .toString());
+        return record != null && record.confirmed;
     }
 
     public synchronized String getChatDisplayName(EntityPlayerMP player) {
         load();
-        BindingRecord r = records.get(
+        BindingRecord record = records.get(
             player.getUniqueID()
                 .toString());
-        return r != null && r.confirmed ? "[" + r.groupNickname + "] " + player.getCommandSenderName()
+        return hasNickname(record) ? "[" + record.groupNickname + "] " + player.getCommandSenderName()
             : player.getCommandSenderName();
+    }
+
+    public synchronized IChatComponent getTabDisplayName(EntityPlayerMP player) {
+        load();
+        BindingRecord record = records.get(
+            player.getUniqueID()
+                .toString());
+        return hasNickname(record)
+            ? new ChatComponentText("§b[" + record.groupNickname + "] §f" + player.getCommandSenderName())
+            : null;
     }
 
     public void applyTabPrefix(EntityPlayerMP player) {
@@ -106,21 +130,30 @@ public final class QQBindingManager {
     }
 
     public void sendBindReminder(EntityPlayerMP player) {
-        load();
-        BindingRecord r = records.get(
-            player.getUniqueID()
-                .toString());
-        if (r != null && r.confirmed) return;
-        ChatComponentText msg = new ChatComponentText("§eQQ未绑定，点击 §a[绑定]");
-        msg.setChatStyle(
-            new ChatStyle().setChatClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/qqbind ")));
-        player.addChatMessage(msg);
+        if (isConfirmed(player)) return;
+        ChatComponentText tip = new ChatComponentText("§e你还没有绑定QQ号, 点击");
+        ChatComponentText button = new ChatComponentText("[绑定]");
+        button.setChatStyle(
+            new ChatStyle().setColor(net.minecraft.util.EnumChatFormatting.GREEN)
+                .setUnderlined(true)
+                .setChatClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/qqbind "))
+                .setChatHoverEvent(
+                    new HoverEvent(
+                        HoverEvent.Action.SHOW_TEXT,
+                        new ChatComponentText("§7点击后输入QQ号，例如 /qqbind 123456789"))));
+        tip.appendSibling(button)
+            .appendSibling(new ChatComponentText("§e后输入QQ号可获得头衔"));
+        player.addChatMessage(tip);
     }
 
-    private String sanitize(String s) {
-        if (s == null) return "QQ";
-        s = s.replaceAll("[§\\[\\]\\r\\n\\t]", "")
+    private static boolean hasNickname(BindingRecord record) {
+        return record != null && record.confirmed && record.groupNickname != null && !record.groupNickname.isEmpty();
+    }
+
+    private String sanitize(String value) {
+        if (value == null) return "";
+        value = value.replaceAll("[§\\[\\]\\r\\n\\t]", "")
             .trim();
-        return s.length() > 32 ? s.substring(0, 32) : s;
+        return value.length() > 32 ? value.substring(0, 32) : value;
     }
 }

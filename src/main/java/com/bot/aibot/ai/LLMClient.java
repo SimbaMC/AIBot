@@ -20,11 +20,11 @@ public final class LLMClient {
     private LLMClient() {}
 
     public static void chat(final EntityPlayerMP player, final String question) {
-        player.addChatMessage(new ChatComponentText("§7[Bot] Thinking..."));
+        player.addChatMessage(new ChatComponentText("§7[Bot] 正在思考..."));
         request(BotConfig.aiPrompt, question, new Callback() {
 
             public void done(final String reply) {
-                player.addChatMessage(new ChatComponentText("[Bot] " + reply));
+                player.addChatMessage(new ChatComponentText("§a[Bot] " + reply));
             }
         });
     }

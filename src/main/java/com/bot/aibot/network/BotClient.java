@@ -42,7 +42,7 @@ public final class BotClient {
 
                 public void onOpen(ServerHandshake handshake) {
                     reconnectDelay = BotConfig.reconnectInitialInterval;
-                    broadcast("§a[Bot] OneBot connected");
+                    broadcast("§a[Bot] 连接成功！");
                     sendMessageToQQ(BotConfig.startMsgFormat.replace("%prefix%", BotConfig.mcPrefix));
                 }
 
@@ -53,7 +53,7 @@ public final class BotClient {
                 public void onMessage(ByteBuffer bytes) {}
 
                 public void onClose(int code, String reason, boolean remote) {
-                    broadcast("§c[Bot] OneBot disconnected");
+                    broadcast("§c[Bot] 连接断开！");
                     scheduleReconnect();
                 }
 
@@ -67,7 +67,7 @@ public final class BotClient {
             socket.setConnectionLostTimeout(45);
             socket.connect();
         } catch (Exception e) {
-            BottyMod.LOG.error("Unable to connect OneBot websocket", e);
+            BottyMod.LOG.error(">>> [Bot] OneBot WebSocket 连接失败", e);
             scheduleReconnect();
         }
     }

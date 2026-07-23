@@ -1,4 +1,4 @@
-AiBot 1.0.0-gtnh284 - Minecraft 1.7.10 / GT New Horizons 2.8.4
+AiBot 1.0.1-gtnh284 - Minecraft 1.7.10 / GT New Horizons 2.8.4
 
 AiBot bridges a Forge server to QQ through a OneBot 11 WebSocket and includes optional AI chat/death translation, QQ account binding, achievements, join/leave/chat/death sync, and client-side playback of server-provided music URLs.
 

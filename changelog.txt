@@ -1,3 +1,9 @@
+1.0.1-gtnh284
+- Restored all player-facing prefixes and Chinese default message templates from the Forge 1.20.1 release.
+- Restored QQ binding prompts, confirmation feedback, chat names, and tab-list nickname titles.
+- Restored the full QQ status response with TPS/MSPT, average ping, OP markers, node names, and online players.
+- Restored clickable QQ image/face labels and registered missing login, logout, achievement, and /qqbind handlers.
+
 1.0.0-gtnh284
 - Complete Forge 1.7.10/RFG project migration for GTNH 2.8.4.
 - Added Java 8-compatible shaded OneBot WebSocket client with heartbeat, reconnect and authentication.

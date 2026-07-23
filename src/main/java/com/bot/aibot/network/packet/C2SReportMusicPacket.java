@@ -64,7 +64,7 @@ public class C2SReportMusicPacket implements IMessage {
             if (m.global) {
                 PacketHandler.sendToAll(x);
                 p.mcServer.getConfigurationManager()
-                    .sendChatMsg(new net.minecraft.util.ChatComponentText("正在全服播放: §a" + m.songName));
+                    .sendChatMsg(new net.minecraft.util.ChatComponentText("§b♪ §f正在播放: §a" + m.songName + " §b♪"));
             } else PacketHandler.sendToPlayer(x, p);
             return null;
         }

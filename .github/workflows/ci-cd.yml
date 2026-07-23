@@ -21,10 +21,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: AiBot-MC1.7.10-GTNH2.8.4
-          path: build/libs/AiBot-MC1.7.10-GTNH2.8.4-1.0.0-gtnh284.jar
+          path: build/libs/AiBot-MC1.7.10-GTNH2.8.4-1.0.1-gtnh284.jar
           if-no-files-found: error
       - if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/libs/AiBot-MC1.7.10-GTNH2.8.4-1.0.0-gtnh284.jar
+          files: build/libs/AiBot-MC1.7.10-GTNH2.8.4-1.0.1-gtnh284.jar
           generate_release_notes: true
