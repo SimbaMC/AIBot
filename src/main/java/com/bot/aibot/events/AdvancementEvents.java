@@ -1,5 +1,6 @@
 package com.bot.aibot.events;
 
+import net.minecraft.util.StatCollector;
 import net.minecraftforge.event.entity.player.AchievementEvent;
 
 import com.bot.aibot.config.BotConfig;
@@ -14,10 +15,7 @@ public class AdvancementEvents {
         if (!BotConfig.enableAdvancement || event.achievement == null || event.entityPlayer.worldObj.isRemote) return;
         String message = MinecraftEvents
             .formatMsg(BotConfig.advancementMsgFormat, event.entityPlayer.getCommandSenderName(), "")
-            .replace(
-                "%advancement%",
-                event.achievement.func_150951_e()
-                    .getUnformattedText());
+            .replace("%advancement%", StatCollector.translateToLocal(event.achievement.statId));
         BotClient.getInstance()
             .sendMessageToQQ(message);
     }

@@ -1,4 +1,4 @@
-AiBot 1.0.2-gtnh284 - Minecraft 1.7.10 / GT New Horizons 2.8.4
+AiBot 1.5.0-gtnh284 - Minecraft 1.7.10 / GT New Horizons 2.8.4
 
 AiBot bridges a Forge server to QQ through a OneBot 11 WebSocket and includes optional AI chat/death translation, QQ account binding, achievements, join/leave/chat/death sync, and client-side playback of server-provided music URLs.
 
@@ -11,15 +11,16 @@ The produced classes and distributable jar target Java 8. Forge is exactly 1.7.1
 Configuration
 -------------
 config/aibot.cfg: WebSocket, groups, bridge features, AI endpoint/key, messages and music cooldown.
+config/aibot-client.cfg: local-only Netease login cookie (never sent to the server).
 config/aibot-qq-bindings.json: generated QQ binding database.
 config/aibot/custom_death.json: generated AI death translation cache.
 Defaults retain the old option names to ease migration from the 1.20 branch.
 
 Commands
 --------
-/bot reload (OP), /bot stop, /bot qqbind <QQ number>
+/bot reload (OP), /bot stop, /bot qqbind <QQ number>. Press M to open the music GUI.
 QQ commands: !status and !bind <player>.
 
 Compatibility notes
 -------------------
-OneBot uses a shaded/relocated Java-WebSocket implementation and HTTP uses HttpURLConnection; no Java 11 APIs are linked. JLayer is shaded. QQ CQ image/face segments are represented as chat markers. Native hover image previews, QR login, and the full modern playlist GUI are not included because their 1.20 rendering/input implementation is incompatible with the GTNH 1.7.10 client; direct URL playback and packet controls remain.
+OneBot uses a shaded/relocated Java-WebSocket implementation and HTTP uses Java 8 URLConnection APIs; JLayer is shaded. The client GUI supports QR login, search, My Likes, playlist folders, paging, private/global playback, list/single/random modes and playback controls. The server never receives Netease credentials. Global reports are bounded, cooldown-authoritative, and asynchronously restricted to public DNS addresses under the exact .music.126.net label suffix. Playback revalidates every HTTPS redirect (maximum five); a small DNS validation-to-connect TOCTOU window remains.

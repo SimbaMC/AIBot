@@ -18,3 +18,10 @@
 - Backported SimpleNetworkWrapper music packets and shaded JLayer playback.
 - Replaced TOML with aibot.cfg and aibot-client.cfg.
 - Removed Mixins and modern-only image/QR GUI rendering; CQ media is represented by chat markers.
+1.5.0-gtnh284
+- Added the complete Java 8/Forge 1.7.10 client music GUI: search, My Likes, playlist-folder navigation, paging, QR login, playback modes and controls.
+- Added local-only client cookie persistence and JLayer MP3 playback synchronized with Minecraft master/music volume.
+- Added private playback and hardened global broadcast reports without sending Netease cookies or tokens to the server.
+- Added bounded packet codecs, bounded asynchronous HTTPS Netease CDN/DNS validation, session rechecks and authoritative global cooldown.
+- Added explicit redirect-disabled HttpsURLConnection playback with validation on up to five redirects and reliable disconnect cleanup.
+- Security note: DNS validation and the subsequent TLS connection retain a small unavoidable TOCTOU window.

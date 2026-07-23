@@ -2,7 +2,7 @@ package com.bot.aibot.network.packet;
 
 import java.nio.charset.StandardCharsets;
 
-import com.bot.aibot.client.ClientPacketHandler;
+import com.bot.aibot.BottyMod;
 
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import cpw.mods.fml.common.network.simpleimpl.IMessageHandler;
@@ -11,10 +11,10 @@ import io.netty.buffer.ByteBuf;
 
 public class S2CMusicCommandPacket implements IMessage {
 
-    private static final int MAX_DATA_BYTES = 8192;
+    private static final int MAX_DATA_BYTES = 2048;
 
     public enum Action {
-        PLAY_Direct,
+        PLAY_DIRECT,
         STOP,
         SEARCH_AND_PLAY,
         OPEN_GUI,
@@ -50,9 +50,11 @@ public class S2CMusicCommandPacket implements IMessage {
         buf.readBytes(b);
         data = new String(b, StandardCharsets.UTF_8);
         extra = buf.readLong();
+        validate();
     }
 
     public void toBytes(ByteBuf buf) {
+        validate();
         byte[] b = data.getBytes(StandardCharsets.UTF_8);
         if (b.length > MAX_DATA_BYTES)
             throw new IllegalArgumentException("Music payload exceeds " + MAX_DATA_BYTES + " bytes");
@@ -62,10 +64,26 @@ public class S2CMusicCommandPacket implements IMessage {
         buf.writeLong(extra);
     }
 
+    private void validate() {
+        if (action == null || data == null) throw new IllegalArgumentException("Invalid music command");
+        int size = data.getBytes(StandardCharsets.UTF_8).length;
+        if (size > MAX_DATA_BYTES) throw new IllegalArgumentException("Music command data is too long");
+        if (action == Action.PLAY_DIRECT && (size == 0 || extra <= 0 || extra > 86400000L))
+            throw new IllegalArgumentException("Invalid direct-play command");
+        if (action == Action.SEARCH_AND_PLAY && (size == 0 || size > 256 || extra != 0 && extra != 1))
+            throw new IllegalArgumentException("Invalid search command");
+        if (action == Action.PLAY_MY_LIKE && (size != 0 || extra != 0))
+            throw new IllegalArgumentException("Invalid likes command");
+        if ((action == Action.STOP || action == Action.OPEN_GUI || action == Action.RESET_COOLDOWN)
+            && (size != 0 || extra != 0)) throw new IllegalArgumentException("Unexpected music command data");
+        if (action != Action.PLAY_DIRECT && action != Action.SEARCH_AND_PLAY && extra != 0)
+            throw new IllegalArgumentException("Unexpected music command data");
+    }
+
     public static class Handler implements IMessageHandler<S2CMusicCommandPacket, IMessage> {
 
         public IMessage onMessage(final S2CMusicCommandPacket msg, MessageContext ctx) {
-            ClientPacketHandler.handle(msg.action.ordinal(), msg.data, msg.extra);
+            BottyMod.proxy.handleMusicPacket(msg.action.ordinal(), msg.data, msg.extra);
             return null;
         }
     }

@@ -1,7 +1,6 @@
 package com.bot.aibot.client;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.util.ChatComponentText;
 
 public final class ClientPacketHandler {
 
@@ -10,12 +9,11 @@ public final class ClientPacketHandler {
             .func_152344_a(new Runnable() {
 
                 public void run() {
-                    if (action == 0) ClientMusicManager.play(data);
+                    if (action == 0) ClientMusicManager.play(data, "正在播放...", extra);
                     else if (action == 1) ClientMusicManager.stop();
-                    else if (Minecraft.getMinecraft().thePlayer != null)
-                        Minecraft.getMinecraft().thePlayer.addChatMessage(
-                            new ChatComponentText(
-                                "§e[AiBot] Music GUI/QR login is unavailable in this 1.7.10 build; use direct play commands."));
+                    else if (action >= 2 && action <= 4) Minecraft.getMinecraft()
+                        .displayGuiScreen(new MusicPlayerScreen());
+                    else if (action == 5) MusicPlayerScreen.resetBroadcastCooldown();
                 }
             });
     }
