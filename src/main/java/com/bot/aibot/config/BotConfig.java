@@ -1,220 +1,102 @@
 package com.bot.aibot.config;
 
-import com.electronwill.nightconfig.core.file.CommentedFileConfig;
-import com.electronwill.nightconfig.core.io.WritingMode;
-import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.fml.loading.FMLPaths;
-import org.apache.commons.lang3.tuple.Pair;
+import java.io.File;
 
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.List;
+import net.minecraftforge.common.config.Configuration;
 
-public class BotConfig {
+public final class BotConfig {
 
-    public static final ServerConfig SERVER;
-    public static final ForgeConfigSpec SERVER_SPEC;
+    public static String wsUrl, accessToken, mcPrefix, aiApiUrl, aiApiKey, aiModelName, aiPrompt, aiTriggerPrefix,
+        aiDeathMode, aiDeathPrompt, joinMsgFormat, leaveMsgFormat, deathMsgFormat, chatMsgFormat, advancementMsgFormat,
+        startMsgFormat, qqFaceApi, neteaseCookie;
+    public static long[] groupIds;
+    public static long targetBotId;
+    public static boolean reconnectEnabled, enableChatSync, enableJoinLeave, enableDeath, enableAdvancement, enableAI;
+    public static int reconnectInitialInterval, reconnectMaxInterval, broadcastCooldown;
+    public static double reconnectMultiplier;
+    private static Configuration server, client;
 
-    public static final ClientConfig CLIENT;
-    public static final ForgeConfigSpec CLIENT_SPEC;
+    private BotConfig() {}
 
-    static {
-        final Pair<ServerConfig, ForgeConfigSpec> serverPair = new ForgeConfigSpec.Builder().configure(ServerConfig::new);
-        SERVER_SPEC = serverPair.getRight();
-        SERVER = serverPair.getLeft();
-
-        final Pair<ClientConfig, ForgeConfigSpec> clientPair = new ForgeConfigSpec.Builder().configure(ClientConfig::new);
-        CLIENT_SPEC = clientPair.getRight();
-        CLIENT = clientPair.getLeft();
+    public static void init(File configDir) {
+        server = new Configuration(new File(configDir, "aibot.cfg"));
+        client = new Configuration(new File(configDir, "aibot-client.cfg"));
+        load();
     }
 
-    public static class ServerConfig {
-        public final ForgeConfigSpec.ConfigValue<String> wsUrl;
-        public final ForgeConfigSpec.ConfigValue<List<? extends Number>> groupIds;
-        public final ForgeConfigSpec.ConfigValue<Long> targetBotId;
-        public final ForgeConfigSpec.ConfigValue<String> accessToken;
-        public final ForgeConfigSpec.BooleanValue reconnectEnabled;
-        public final ForgeConfigSpec.IntValue reconnectInitialInterval;
-        public final ForgeConfigSpec.DoubleValue reconnectMultiplier;
-        public final ForgeConfigSpec.IntValue reconnectMaxInterval;
-
-        public final ForgeConfigSpec.BooleanValue enableChatSync;
-        public final ForgeConfigSpec.BooleanValue enableJoinLeave;
-        public final ForgeConfigSpec.BooleanValue enableDeath;
-        public final ForgeConfigSpec.ConfigValue<String> mcPrefix;
-        public final ForgeConfigSpec.BooleanValue enableAdvancement;
-
-        public final ForgeConfigSpec.BooleanValue enableAI;
-        public final ForgeConfigSpec.ConfigValue<String> aiApiUrl;
-        public final ForgeConfigSpec.ConfigValue<String> aiApiKey;
-        public final ForgeConfigSpec.ConfigValue<String> aiModelName;
-        public final ForgeConfigSpec.ConfigValue<String> aiPrompt;
-        public final ForgeConfigSpec.ConfigValue<String> aiTriggerPrefix;
-        public final ForgeConfigSpec.ConfigValue<String> aiDeathMode;
-        public final ForgeConfigSpec.ConfigValue<String> aiDeathPrompt;
-
-        public final ForgeConfigSpec.IntValue broadcastCooldown;
-
-        public final ForgeConfigSpec.ConfigValue<String> joinMsgFormat;
-        public final ForgeConfigSpec.ConfigValue<String> leaveMsgFormat;
-        public final ForgeConfigSpec.ConfigValue<String> deathMsgFormat;
-        public final ForgeConfigSpec.ConfigValue<String> chatMsgFormat;
-        public final ForgeConfigSpec.ConfigValue<String> advancementMsgFormat;
-        public final ForgeConfigSpec.ConfigValue<String> startMsgFormat;
-        public final ForgeConfigSpec.ConfigValue<List<? extends String>> nodeMappings;
-        public final ForgeConfigSpec.ConfigValue<String> defaultNodeName;
-
-        public final ForgeConfigSpec.ConfigValue<String> qqFaceApi;
-
-        public ServerConfig(ForgeConfigSpec.Builder builder) {
-            builder.push("Status_Command_Settings");
-
-            nodeMappings = builder
-                    .comment("节点 IP 映射配置。格式为 'IP:节点名'", "例如: ['127.0.0.1:本地节点', '1.2.3.4:上海中转']")
-                    .defineList("nodeMappings", List.of("127.0.0.1:本地节点"), o -> o instanceof String);
-
-            defaultNodeName = builder
-                    .comment("当玩家 IP 不在映射列表中时显示的名称")
-                    .define("defaultNodeName", "直连");
-
-            builder.pop();
-            builder.comment("bot链接配置").push("general");
-            wsUrl = builder.comment("WebSocket URL")
-                    .define("ws_url", "ws://127.0.0.1:3001");
-            accessToken = builder.comment("NapCat/OneBot 鉴权 Token (如果未开启鉴权请留空)")
-                    .define("access_token", "");
-            groupIds = builder.comment("QQ群号列表")
-                    .defineList("group_ids", Arrays.asList(0L), o -> o instanceof Number);
-            targetBotId = builder.comment("目标机器人Q号")
-                    .define("target_bot_id", 0L);
-            reconnectEnabled = builder.comment("是否在断开连接后自动重连")
-                    .define("reconnect_enabled", true);
-            reconnectInitialInterval = builder.comment("初始重连间隔（秒）")
-                    .defineInRange("reconnect_initial_interval", 5, 1, Integer.MAX_VALUE);
-            reconnectMultiplier = builder.comment("重连间隔指数退避倍率（每次失败后乘以此值）")
-                    .defineInRange("reconnect_multiplier", 2.0, 1.0, (double) Integer.MAX_VALUE);
-            reconnectMaxInterval = builder.comment("最大重连间隔上限（秒）")
-                    .defineInRange("reconnect_max_interval", 300, 1, Integer.MAX_VALUE);
-            qqFaceApi = builder.comment("QQ表情源码地址 (必须包含 %s)")
-                    .define("qq_face_api", "https://koishi.js.org/QFace/assets/qq_emoji/%s/png/%s.png");
-            builder.pop();
-
-            builder.comment("Features").push("features");
-            enableChatSync = builder.comment("开启群聊同步")
-                    .define("enable_chat_sync", true);
-            enableJoinLeave = builder.comment("开启加入/离开消息播报")
-                    .define("enable_join_leave", true);
-            enableDeath = builder.comment("开启死亡消息播报")
-                    .define("enable_death", true);
-            enableAdvancement = builder.comment("开启成就消息播报")
-                    .define("enable_advancement", true);
-            mcPrefix = builder.comment("服务器前缀").define("mc_prefix", "Server");
-            broadcastCooldown = builder
-                    .comment("全服广播音乐冷却时间")
-                    .defineInRange("broadcast_cooldown", 600, 0, 3600);
-            builder.pop();
-
-            builder.comment("AI 设置").push("ai_features");
-            enableAI = builder.comment("开启AI聊天功能")
-                    .define("enable_ai", false);
-            aiApiUrl = builder.define("api_url", "https://api.deepseek.com/chat/completions");
-            aiApiKey = builder.define("api_key", "sk-xxxxxxxx");
-            aiModelName = builder.define("model_name", "deepseek-chat");
-            aiPrompt = builder.comment("AI个性提示词")
-                    .define("system_prompt", "你是一个minecraft服务器助手...");
-            aiTriggerPrefix = builder.comment("AI触发词")
-                    .define("trigger_prefix", "bot ");
-            aiDeathMode = builder.comment("AI死亡播报模式----OFF为关闭,HYBRID为混合（即优先加载已有汉化的死亡播报，如无汉化则使用ai翻译）,AI_ONLY为仅使用AI翻译")
-                    .defineInList("ai_death_mode", "HYBRID", Arrays.asList("OFF", "HYBRID", "AI_ONLY"));
-            aiDeathPrompt = builder.comment("AI死亡播报风格提示词")
-                    .define("ai_death_prompt", "无情的嘲讽玩家...");
-            builder.pop();
-
-            builder.comment("消息设置").push("messages");
-            advancementMsgFormat = builder.comment("成就播报消息格式")
-                    .define("advancement_msg", "%player% 获得了成就 [%advancement%]");
-            joinMsgFormat = builder.comment("加入消息格式")
-                    .define("join_msg", "%player% 加入了服务器!");
-            leaveMsgFormat = builder.comment("离开消息格式")
-                    .define("leave_msg", "%player% 离开了服务器.");
-            deathMsgFormat = builder.comment("死亡消息播报格式-------不加任何文字即为播放游戏中弹出的死亡消息")
-                    .define("death_msg", "%msg%");
-            chatMsgFormat = builder.comment("聊天消息播报格式---默认格式例子：[Server]玩家名:消息")
-                    .define("chat_format", "[%prefix%] %player%: %msg%");
-            startMsgFormat = builder.comment("服务器连接通知")
-                    .define("start_msg", "[%prefix%] 群服互联已连接!");
-            builder.pop();
-        }
+    public static synchronized void load() {
+        server.load();
+        wsUrl = server.getString("ws_url", "general", "ws://127.0.0.1:3001", "OneBot 11 reverse WebSocket URL");
+        accessToken = server.getString("access_token", "general", "", "Bearer token; leave empty when disabled");
+        groupIds = parseLongs(
+            server.getStringList("group_ids", "general", new String[] { "0" }, "Allowed QQ group IDs"));
+        targetBotId = parseLong(
+            server.getString("target_bot_id", "general", "0", "Expected OneBot self_id; 0 accepts all"));
+        reconnectEnabled = server.getBoolean("reconnect_enabled", "general", true, "Reconnect automatically");
+        reconnectInitialInterval = server
+            .getInt("reconnect_initial_interval", "general", 5, 1, 3600, "Initial reconnect delay in seconds");
+        reconnectMultiplier = server
+            .getFloat("reconnect_multiplier", "general", 2.0f, 1.0f, 10.0f, "Reconnect backoff multiplier");
+        reconnectMaxInterval = server
+            .getInt("reconnect_max_interval", "general", 300, 1, 86400, "Maximum reconnect delay");
+        qqFaceApi = server.getString(
+            "qq_face_api",
+            "general",
+            "https://koishi.js.org/QFace/assets/qq_emoji/%s/png/%s.png",
+            "QQ face URL template");
+        enableChatSync = server.getBoolean("enable_chat_sync", "features", true, "Synchronize chat");
+        enableJoinLeave = server.getBoolean("enable_join_leave", "features", true, "Synchronize joins and leaves");
+        enableDeath = server.getBoolean("enable_death", "features", true, "Synchronize deaths");
+        enableAdvancement = server.getBoolean("enable_achievement", "features", true, "Synchronize achievements");
+        enableAI = server.getBoolean("enable_ai", "ai", false, "Enable OpenAI-compatible chat/death translation");
+        broadcastCooldown = server
+            .getInt("broadcast_cooldown", "features", 600, 0, 3600, "Global music cooldown in seconds");
+        mcPrefix = server.getString("mc_prefix", "messages", "Server", "Server label");
+        joinMsgFormat = server.getString("join_msg", "messages", "%player% joined the server!", "Join message");
+        leaveMsgFormat = server.getString("leave_msg", "messages", "%player% left the server.", "Leave message");
+        deathMsgFormat = server.getString("death_msg", "messages", "%msg%", "Death message");
+        chatMsgFormat = server.getString("chat_format", "messages", "[%prefix%] %player%: %msg%", "Chat message");
+        advancementMsgFormat = server
+            .getString("achievement_msg", "messages", "%player% earned [%achievement%]", "Achievement message");
+        startMsgFormat = server
+            .getString("start_msg", "messages", "[%prefix%] QQ bridge connected!", "Connection message");
+        aiApiUrl = server
+            .getString("api_url", "ai", "https://api.deepseek.com/chat/completions", "OpenAI-compatible endpoint");
+        aiApiKey = server.getString("api_key", "ai", "", "API key");
+        aiModelName = server.getString("model_name", "ai", "deepseek-chat", "Model name");
+        aiPrompt = server
+            .getString("system_prompt", "ai", "You are a Minecraft server assistant.", "Chat system prompt");
+        aiTriggerPrefix = server.getString("trigger_prefix", "ai", "bot ", "AI chat trigger");
+        aiDeathMode = server.getString("ai_death_mode", "ai", "HYBRID", "OFF, HYBRID, or AI_ONLY");
+        aiDeathPrompt = server.getString(
+            "ai_death_prompt",
+            "ai",
+            "Translate this Minecraft death message into concise Chinese.",
+            "Death translation prompt");
+        if (server.hasChanged()) server.save();
+        client.load();
+        neteaseCookie = client.getString("netease_cookie", "client", "", "Reserved for NetEase API authentication");
+        if (client.hasChanged()) client.save();
     }
 
-    public static class ClientConfig {
-        public final ForgeConfigSpec.ConfigValue<String> neteaseCookie;
-
-        public ClientConfig(ForgeConfigSpec.Builder builder) {
-            builder.comment("Client Settings").push("client");
-            neteaseCookie = builder.comment("网易云账号Cookie")
-                    .define("netease_cookie", "");
-            builder.pop();
-        }
+    public static synchronized void saveClientCookie(String cookie) {
+        neteaseCookie = cookie == null ? "" : cookie.trim();
+        client.get("client", "netease_cookie", "")
+            .set(neteaseCookie);
+        client.save();
     }
 
-    public static void refresh() {
+    private static long parseLong(String value) {
         try {
-            Path serverPath = FMLPaths.CONFIGDIR.get().resolve("aibot-common.toml");
-            System.out.println(">>> [Bot] 正在重新加载服务器配置： " + serverPath);
-
-            CommentedFileConfig serverConfig = CommentedFileConfig.builder(serverPath)
-                    .sync()
-                    .writingMode(WritingMode.REPLACE)
-                    .build();
-
-            serverConfig.load();
-            SERVER_SPEC.setConfig(serverConfig);
-
-            Path clientPath = FMLPaths.CONFIGDIR.get().resolve("aibot-client.toml");
-            if (clientPath.toFile().exists()) {
-                System.out.println(">>> [Bot] 正在重新加载客户端配置: " + clientPath);
-                CommentedFileConfig clientConfig = CommentedFileConfig.builder(clientPath)
-                        .sync()
-                        .writingMode(WritingMode.REPLACE)
-                        .build();
-                clientConfig.load();
-                CLIENT_SPEC.setConfig(clientConfig);
-            }
-
-            System.out.println(">>> [Bot] 配置文件热重载成功！");
+            return Long.parseLong(value);
         } catch (Exception e) {
-            System.err.println(">>> [Bot] 配置文件热重载失败！");
-            e.printStackTrace();
+            return 0L;
         }
     }
 
-    public static void saveClientCookie(String cookie) {
-        String normalized = cookie == null ? "" : cookie.trim();
-        try {
-            CLIENT.neteaseCookie.set(normalized);
-            CLIENT_SPEC.save();
-            return;
-        } catch (Exception ignored) {
-            // 部分环境下 CLIENT_SPEC.save() 可能在配置尚未绑定时不可用，走文件兜底。
-        }
-
-        try {
-            Path clientPath = FMLPaths.CONFIGDIR.get().resolve("aibot-client.toml");
-            CommentedFileConfig clientConfig = CommentedFileConfig.builder(clientPath)
-                    .sync()
-                    .autosave()
-                    .writingMode(WritingMode.REPLACE)
-                    .build();
-            if (clientPath.toFile().exists()) {
-                clientConfig.load();
-            }
-            clientConfig.set("client.netease_cookie", normalized);
-            clientConfig.save();
-            clientConfig.close();
-            CLIENT.neteaseCookie.set(normalized);
-        } catch (Exception e) {
-            System.err.println(">>> [Bot] 保存网易云 Cookie 失败: " + e.getMessage());
-        }
+    private static long[] parseLongs(String[] values) {
+        long[] result = new long[values.length];
+        for (int i = 0; i < values.length; i++) result[i] = parseLong(values[i]);
+        return result;
     }
 }

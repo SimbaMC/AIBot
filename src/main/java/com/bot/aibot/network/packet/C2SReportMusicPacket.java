@@ -1,72 +1,72 @@
 package com.bot.aibot.network.packet;
 
+import java.nio.charset.StandardCharsets;
+
+import net.minecraft.entity.player.EntityPlayerMP;
+
 import com.bot.aibot.network.PacketHandler;
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkEvent;
-import net.minecraftforge.network.PacketDistributor;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
-import java.util.function.Supplier;
+import cpw.mods.fml.common.network.simpleimpl.IMessage;
+import cpw.mods.fml.common.network.simpleimpl.IMessageHandler;
+import cpw.mods.fml.common.network.simpleimpl.MessageContext;
+import io.netty.buffer.ByteBuf;
 
-public class C2SReportMusicPacket {
-    private static final Logger LOGGER = LogManager.getLogger();
+public class C2SReportMusicPacket implements IMessage {
 
-    private final String url;
-    private final String songName;
-    private final long duration;
-    private final boolean isGlobal; // 【新增】标记是否为全服播放
+    public String url = "", songName = "";
+    public long duration;
+    public boolean global;
 
-    public C2SReportMusicPacket(String url, String songName, long duration, boolean isGlobal) {
-        this.url = url;
-        this.songName = songName;
-        this.duration = duration;
-        this.isGlobal = isGlobal;
+    public C2SReportMusicPacket() {}
+
+    public C2SReportMusicPacket(String u, String n, long d, boolean g) {
+        url = u;
+        songName = n;
+        duration = d;
+        global = g;
     }
 
-    public C2SReportMusicPacket(FriendlyByteBuf buf) {
-        this.url = buf.readUtf();
-        this.songName = buf.readUtf();
-        this.duration = buf.readLong();
-        this.isGlobal = buf.readBoolean(); // 【新增】
+    private static String read(ByteBuf b) {
+        int n = b.readInt();
+        byte[] x = new byte[n];
+        b.readBytes(x);
+        return new String(x, StandardCharsets.UTF_8);
     }
 
-    public void encode(FriendlyByteBuf buf) {
-        buf.writeUtf(this.url);
-        buf.writeUtf(this.songName);
-        buf.writeLong(this.duration);
-        buf.writeBoolean(this.isGlobal); // 【新增】
+    private static void write(ByteBuf b, String s) {
+        byte[] x = s.getBytes(StandardCharsets.UTF_8);
+        b.writeInt(x.length);
+        b.writeBytes(x);
     }
 
-    public void handle(Supplier<NetworkEvent.Context> ctx) {
-        ctx.get().enqueueWork(() -> {
-            ServerPlayer sender = ctx.get().getSender();
-            if (sender != null) {
-                LOGGER.info(">>> [Server] 收到歌曲上报: {} (全服: {})", songName, isGlobal);
+    public void fromBytes(ByteBuf b) {
+        url = read(b);
+        songName = read(b);
+        duration = b.readLong();
+        global = b.readBoolean();
+    }
 
-                // 构造播放指令
-                S2CMusicCommandPacket playPacket = new S2CMusicCommandPacket(
-                        S2CMusicCommandPacket.Action.PLAY_Direct,
-                        url,
-                        duration
-                );
+    public void toBytes(ByteBuf b) {
+        write(b, url);
+        write(b, songName);
+        b.writeLong(duration);
+        b.writeBoolean(global);
+    }
 
-                if (isGlobal) {
-                    // --- 情况 A: 全服广播 ---
-                    PacketHandler.sendToAll(playPacket);
+    public static class Handler implements IMessageHandler<C2SReportMusicPacket, IMessage> {
 
-                    // 广播消息
-                    String msg = "正在全服播放: §a" + songName;
-                    sender.getServer().getPlayerList().broadcastSystemMessage(Component.literal(msg), false);
-
-                } else {
-                    // --- 情况 B: 私享播放 ---
-                    PacketHandler.sendToPlayer(playPacket, sender);
-                }
-            }
-        });
-        ctx.get().setPacketHandled(true);
+        public IMessage onMessage(C2SReportMusicPacket m, MessageContext c) {
+            EntityPlayerMP p = c.getServerHandler().playerEntity;
+            S2CMusicCommandPacket x = new S2CMusicCommandPacket(
+                S2CMusicCommandPacket.Action.PLAY_Direct,
+                m.url,
+                m.duration);
+            if (m.global) {
+                PacketHandler.sendToAll(x);
+                p.mcServer.getConfigurationManager()
+                    .sendChatMsg(new net.minecraft.util.ChatComponentText("正在全服播放: §a" + m.songName));
+            } else PacketHandler.sendToPlayer(x, p);
+            return null;
+        }
     }
 }

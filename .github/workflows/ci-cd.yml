@@ -1,43 +1,30 @@
-name: Build and Release Mod JAR
-
+name: Build and Release Forge 1.7.10
 on:
   push:
-    branches:
-      - main
-    tags:
-      - '*'
-
+    branches: ["1.7.10"]
+    tags: ["*"]
+  pull_request:
+    branches: ["1.7.10"]
 permissions:
   contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
           cache: gradle
-
-      - name: Build mod JAR
-        run: ./gradlew --no-daemon build
-
-      - name: Upload JAR artifacts
-        uses: actions/upload-artifact@v4
+      - run: chmod +x gradlew && ./gradlew --no-daemon --max-workers=1 build
+      - uses: actions/upload-artifact@v4
         with:
-          name: aibot-jars-${{ github.sha }}
-          path: build/libs/*.jar
+          name: AiBot-MC1.7.10-GTNH2.8.4
+          path: build/libs/AiBot-MC1.7.10-GTNH2.8.4-1.0.0-gtnh284.jar
           if-no-files-found: error
-
-      - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+      - if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/libs/*.jar
+          files: build/libs/AiBot-MC1.7.10-GTNH2.8.4-1.0.0-gtnh284.jar
           generate_release_notes: true

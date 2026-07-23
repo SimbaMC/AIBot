@@ -1,8 +1,1 @@
-{
-  "pack": {
-    "description": {
-      "text": "${mod_id} resources"
-    },
-    "pack_format": 15
-  }
-}
+{"pack":{"pack_format":1,"description":"AiBot resources for Minecraft 1.7.10"}}

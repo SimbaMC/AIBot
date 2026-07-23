@@ -1,6 +1,7 @@
 package com.bot.aibot.utils;
 
 public class SongInfo {
+
     public String id;
     public String name;
     public String artist;

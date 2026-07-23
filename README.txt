@@ -1,46 +1,25 @@
+AiBot 1.0.0-gtnh284 - Minecraft 1.7.10 / GT New Horizons 2.8.4
 
-Source installation information for modders
--------------------------------------------
-This code follows the Minecraft Forge installation methodology. It will apply
-some small patches to the vanilla MCP source code, giving you and it access 
-to some of the data and functions you need to build a successful mod.
+AiBot bridges a Forge server to QQ through a OneBot 11 WebSocket and includes optional AI chat/death translation, QQ account binding, achievements, join/leave/chat/death sync, and client-side playback of server-provided music URLs.
 
-Note also that the patches are built against "un-renamed" MCP source code (aka
-SRG Names) - this means that you will not be able to read them directly against
-normal code.
+Build
+-----
+Use JDK 17+ to run the bundled RetroFuturaGradle wrapper:
+  gradlew build
+The produced classes and distributable jar target Java 8. Forge is exactly 1.7.10-10.13.4.1614-1.7.10.
 
-Setup Process:
-==============================
+Configuration
+-------------
+config/aibot.cfg: WebSocket, groups, bridge features, AI endpoint/key, messages and music cooldown.
+config/aibot-qq-bindings.json: generated QQ binding database.
+config/aibot/custom_death.json: generated AI death translation cache.
+Defaults retain the old option names to ease migration from the 1.20 branch.
 
-Step 1: Open your command-line and browse to the folder where you extracted the zip file.
+Commands
+--------
+/bot reload (OP), /bot stop, /bot qqbind <QQ number>
+QQ commands: !status and !bind <player>.
 
-Step 2: You're left with a choice.
-If you prefer to use Eclipse:
-1. Run the following command: `./gradlew genEclipseRuns`
-2. Open Eclipse, Import > Existing Gradle Project > Select Folder 
-   or run `gradlew eclipse` to generate the project.
-
-If you prefer to use IntelliJ:
-1. Open IDEA, and import project.
-2. Select your build.gradle file and have it import.
-3. Run the following command: `./gradlew genIntellijRuns`
-4. Refresh the Gradle Project in IDEA if required.
-
-If at any point you are missing libraries in your IDE, or you've run into problems you can 
-run `gradlew --refresh-dependencies` to refresh the local cache. `gradlew clean` to reset everything 
-(this does not affect your code) and then start the process again.
-
-Mapping Names:
-=============================
-By default, the MDK is configured to use the official mapping names from Mojang for methods and fields 
-in the Minecraft codebase. These names are covered by a specific license. All modders should be aware of this
-license, if you do not agree with it you can change your mapping names to other crowdsourced names in your 
-build.gradle. For the latest license text, refer to the mapping file itself, or the reference copy here:
-https://github.com/MinecraftForge/MCPConfig/blob/master/Mojang.md
-
-Additional Resources: 
-=========================
-Community Documentation: https://docs.minecraftforge.net/en/1.20.1/gettingstarted/
-LexManos' Install Video: https://youtu.be/8VEdtQLuLO0
-Forge Forums: https://forums.minecraftforge.net/
-Forge Discord: https://discord.minecraftforge.net/
+Compatibility notes
+-------------------
+OneBot uses a shaded/relocated Java-WebSocket implementation and HTTP uses HttpURLConnection; no Java 11 APIs are linked. JLayer is shaded. QQ CQ image/face segments are represented as chat markers. Native hover image previews, QR login, and the full modern playlist GUI are not included because their 1.20 rendering/input implementation is incompatible with the GTNH 1.7.10 client; direct URL playback and packet controls remain.

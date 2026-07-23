@@ -1,154 +1,74 @@
 package com.bot.aibot.events;
 
-import com.bot.aibot.ai.LLMClient;
-import com.bot.aibot.binding.QQBindingManager;
-import com.bot.aibot.binding.QQBindingManager.BindStatus;
-import com.bot.aibot.config.BotConfig;
-import com.bot.aibot.network.BotClient;
-import com.bot.aibot.utils.ChineseUtils;
-import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraftforge.event.ServerChatEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
-import java.util.regex.Pattern;
+import com.bot.aibot.ai.LLMClient;
+import com.bot.aibot.binding.QQBindingManager;
+import com.bot.aibot.config.BotConfig;
+import com.bot.aibot.network.BotClient;
+
+import cpw.mods.fml.common.eventhandler.SubscribeEvent;
+import cpw.mods.fml.common.gameevent.PlayerEvent;
 
 public class MinecraftEvents {
 
-    private static final Logger LOGGER = LogManager.getLogger();
-    private static final Pattern CHINESE_PATTERN = Pattern.compile("[\\u4e00-\\u9fa5]");
-
-    public static String formatMsg(String template, String playerName, String message) {
-        String prefix = BotConfig.SERVER.mcPrefix.get();
-        return template
-                .replace("%prefix%", prefix)
-                .replace("%player%", playerName)
-                .replace("%msg%", message);
-    }
-
-    private static String avoidDuplicatedPlayerPrefix(String template, String playerName, String message) {
-        if (template.contains("%player%") && message != null && message.startsWith(playerName)) {
-            return message.substring(playerName.length());
-        }
-        return message;
+    public static String formatMsg(String template, String player, String message) {
+        return template.replace("%prefix%", BotConfig.mcPrefix)
+            .replace("%player%", player)
+            .replace("%msg%", message);
     }
 
     @SubscribeEvent
     public void onChat(ServerChatEvent event) {
-        String name = QQBindingManager.getInstance().getChatDisplayName(event.getPlayer());
-        String msg = event.getMessage().getString();
-        String normalizedMsg = msg == null ? "" : msg.trim();
-        boolean aiEnabled = BotConfig.SERVER.enableAI.get();
+        String name = QQBindingManager.getInstance()
+            .getChatDisplayName(event.player);
+        String message = event.message == null ? "" : event.message;
+        String trigger = BotConfig.aiTriggerPrefix == null ? "bot " : BotConfig.aiTriggerPrefix;
+        if (BotConfig.enableAI && message.toLowerCase()
+            .startsWith(trigger.toLowerCase())) {
+            String question = message.substring(trigger.length())
+                .trim();
+            if (!question.isEmpty()) LLMClient.chat(event.player, question);
+            return;
+        }
+        if (BotConfig.enableChatSync) BotClient.getInstance()
+            .sendMessageToQQ(formatMsg(BotConfig.chatMsgFormat, name, message));
+    }
 
-        LOGGER.info(">>> [Bot AI] 聊天事件: player=" + name + ", aiEnabled=" + aiEnabled + ", rawMsg=" + normalizedMsg);
+    @SubscribeEvent
+    public void onJoin(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.player instanceof EntityPlayerMP) {
+            EntityPlayerMP player = (EntityPlayerMP) event.player;
+            QQBindingManager.getInstance()
+                .applyTabPrefix(player);
+            QQBindingManager.getInstance()
+                .sendBindReminder(player);
+        }
+        if (BotConfig.enableJoinLeave) BotClient.getInstance()
+            .sendMessageToQQ(formatMsg(BotConfig.joinMsgFormat, event.player.getCommandSenderName(), ""));
+    }
 
-        if (aiEnabled) {
-            String trigger = BotConfig.SERVER.aiTriggerPrefix.get();
-            String normalizedTrigger = trigger == null ? "" : trigger.trim();
-            if (normalizedTrigger.isEmpty()) {
-                normalizedTrigger = "bot";
-            }
+    @SubscribeEvent
+    public void onLeave(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (BotConfig.enableJoinLeave) BotClient.getInstance()
+            .sendMessageToQQ(formatMsg(BotConfig.leaveMsgFormat, event.player.getCommandSenderName(), ""));
+    }
 
-            boolean triggerMatched = normalizedMsg.equalsIgnoreCase(normalizedTrigger)
-                    || normalizedMsg.toLowerCase().startsWith((normalizedTrigger + " ").toLowerCase())
-                    || normalizedMsg.toLowerCase().startsWith((normalizedTrigger + "，").toLowerCase())
-                    || normalizedMsg.toLowerCase().startsWith((normalizedTrigger + ",").toLowerCase())
-                    || normalizedMsg.toLowerCase().startsWith(normalizedTrigger.toLowerCase());
-
-            if (triggerMatched) {
-                String question = normalizedMsg.substring(normalizedTrigger.length()).trim();
-                if (!question.isEmpty()) {
-                    LOGGER.info(">>> [Bot AI] 触发词命中: player=" + name + ", trigger=" + normalizedTrigger + ", question=" + question);
-                    LLMClient.chat(event.getPlayer(), question);
-                } else {
-                    LOGGER.info(">>> [Bot AI] 触发词命中但问题为空: player=" + name + ", trigger=" + normalizedTrigger);
-                }
-                return;
-            }
+    @SubscribeEvent
+    public void onDeath(LivingDeathEvent event) {
+        if (!BotConfig.enableDeath || event.entity.worldObj.isRemote || !(event.entity instanceof EntityPlayerMP))
+            return;
+        EntityPlayerMP player = (EntityPlayerMP) event.entity;
+        String raw = player.func_110142_aN()
+            .func_151521_b()
+            .getUnformattedText();
+        if (BotConfig.enableAI && !"OFF".equalsIgnoreCase(BotConfig.aiDeathMode)) {
+            LLMClient.translateDeath(player, raw.replace(player.getCommandSenderName(), "%s"));
         } else {
-            LOGGER.info(">>> [Bot AI] 已跳过 AI 处理：enable_ai=false");
+            BotClient.getInstance()
+                .sendMessageToQQ(formatMsg(BotConfig.deathMsgFormat, player.getCommandSenderName(), raw));
         }
-        if (BotConfig.SERVER.enableChatSync.get()) {
-            String template = BotConfig.SERVER.chatMsgFormat.get();
-            BotClient.getInstance().sendMessageToQQ(formatMsg(template, name, msg));
-        }
-    }
-
-    @SubscribeEvent
-    public void onPlayerJoin(PlayerEvent.PlayerLoggedInEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player) {
-            QQBindingManager manager = QQBindingManager.getInstance();
-            manager.applyTabPrefix(player);
-            BindStatus status = manager.getStatus(player.getUUID());
-            if (status == null || status == BindStatus.PENDING) {
-                manager.sendBindReminder(player);
-            }
-        }
-        if (BotConfig.SERVER.enableJoinLeave.get()) {
-            BotClient.getInstance().sendMessageToQQ(formatMsg(BotConfig.SERVER.joinMsgFormat.get(), event.getEntity().getName().getString(), ""));
-        }
-    }
-
-    @SubscribeEvent
-    public void onTabListNameFormat(PlayerEvent.TabListNameFormat event) {
-        if (event.getEntity() instanceof ServerPlayer player) {
-            Component displayName = QQBindingManager.getInstance().getTabDisplayName(player);
-            if (displayName != null) {
-                event.setDisplayName(displayName);
-            }
-        }
-    }
-
-    @SubscribeEvent
-    public void onPlayerLeave(PlayerEvent.PlayerLoggedOutEvent event) {
-        if (BotConfig.SERVER.enableJoinLeave.get()) {
-            BotClient.getInstance().sendMessageToQQ(formatMsg(BotConfig.SERVER.leaveMsgFormat.get(), event.getEntity().getName().getString(), ""));
-        }
-    }
-
-    @SubscribeEvent
-    public void onPlayerDeath(LivingDeathEvent event) {
-        if (!BotConfig.SERVER.enableDeath.get()) return;
-        if (event.getEntity().level().isClientSide) return;
-        if (!(event.getEntity() instanceof ServerPlayer player)) return;
-
-        String playerName = player.getName().getString();
-        String rawEnglishMsg = event.getSource().getLocalizedDeathMessage(player).getString();
-        String abstractKey = rawEnglishMsg.replace(playerName, "%s");
-        String localTranslatedMsg = ChineseUtils.translate(event.getSource().getLocalizedDeathMessage(player));
-
-        String mode = BotConfig.SERVER.aiDeathMode.get();
-        String finalMessage = localTranslatedMsg;
-        boolean shouldUseAI = false;
-
-        if ("AI_ONLY".equals(mode)) {
-            shouldUseAI = true;
-        } else if ("HYBRID".equals(mode)) {
-            if (!CHINESE_PATTERN.matcher(localTranslatedMsg).find()) {
-                shouldUseAI = true;
-            }
-        }
-
-        if (shouldUseAI) {
-            String cached = ChineseUtils.getCached(abstractKey);
-            if (cached != null) {
-                try {
-                    finalMessage = cached.replace("%s", playerName);
-                } catch (Exception e) {
-                    finalMessage = cached;
-                }
-            } else {
-                LLMClient.translateDeath(player, abstractKey);
-                return;
-            }
-        }
-
-        String template = BotConfig.SERVER.deathMsgFormat.get();
-        String normalizedMessage = avoidDuplicatedPlayerPrefix(template, playerName, finalMessage);
-        BotClient.getInstance().sendMessageToQQ(formatMsg(template, playerName, normalizedMessage));
     }
 }

@@ -1,0 +1,4 @@
+dependencies {
+    shadowImplementation("org.java-websocket:Java-WebSocket:1.5.7")
+    shadowImplementation("javazoom:jlayer:1.0.1")
+}

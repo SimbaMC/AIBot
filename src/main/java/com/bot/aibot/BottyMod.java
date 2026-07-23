@@ -1,68 +1,64 @@
 package com.bot.aibot;
 
+import net.minecraft.server.MinecraftServer;
+import net.minecraftforge.common.MinecraftForge;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.bot.aibot.config.BotConfig;
-import com.bot.aibot.events.AdvancementEvents;
 import com.bot.aibot.events.MinecraftEvents;
 import com.bot.aibot.events.ModCommands;
 import com.bot.aibot.network.BotClient;
 import com.bot.aibot.network.PacketHandler;
+import com.bot.aibot.proxy.CommonProxy;
 import com.bot.aibot.utils.ChineseUtils;
-import com.bot.aibot.utils.NeteaseApi;
-import net.minecraft.server.MinecraftServer;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.server.ServerStartingEvent;
-import net.minecraftforge.event.server.ServerStoppingEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.ModLoadingContext;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.config.ModConfig;
-import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
-@Mod("aibot")
+import cpw.mods.fml.common.Mod;
+import cpw.mods.fml.common.Mod.EventHandler;
+import cpw.mods.fml.common.SidedProxy;
+import cpw.mods.fml.common.event.FMLInitializationEvent;
+import cpw.mods.fml.common.event.FMLPreInitializationEvent;
+import cpw.mods.fml.common.event.FMLServerStartingEvent;
+import cpw.mods.fml.common.event.FMLServerStoppingEvent;
+
+@Mod(modid = BottyMod.MODID, name = "AiBot", version = Tags.VERSION, acceptableRemoteVersions = "*")
 public class BottyMod {
 
-    private static final Logger LOGGER = LogManager.getLogger();
-
+    public static final String MODID = "aibot";
+    public static final Logger LOG = LogManager.getLogger("AiBot");
+    public static java.io.File configDirectory;
     public static MinecraftServer serverInstance;
+    @SidedProxy(clientSide = "com.bot.aibot.proxy.ClientProxy", serverSide = "com.bot.aibot.proxy.CommonProxy")
+    public static CommonProxy proxy;
 
-    public BottyMod() {
-        // 注册配置
-        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, BotConfig.SERVER_SPEC);
-        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, BotConfig.CLIENT_SPEC);
-
-        // 注册事件
-        MinecraftForge.EVENT_BUS.register(this);
-        MinecraftForge.EVENT_BUS.register(new MinecraftEvents());
-        MinecraftForge.EVENT_BUS.register(new ModCommands());
-        MinecraftForge.EVENT_BUS.register(new AdvancementEvents());
-
-        // 注册网络包
+    @EventHandler
+    public void preInit(FMLPreInitializationEvent event) {
+        configDirectory = event.getModConfigurationDirectory();
+        BotConfig.init(event.getModConfigurationDirectory());
         PacketHandler.register();
-
-        // 注册客户端初始化事件
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::doClientStuff);
+        MinecraftForge.EVENT_BUS.register(new MinecraftEvents());
+        proxy.preInit();
     }
 
-    private void doClientStuff(final FMLClientSetupEvent event) {
-        event.enqueueWork(() -> {
-            LOGGER.info(">>> [Bot] Client Setup...");
-            NeteaseApi.loadCookies();
-        });
+    @EventHandler
+    public void init(FMLInitializationEvent event) {
+        proxy.init();
     }
 
-    @SubscribeEvent
-    public void onServerStarting(ServerStartingEvent event) {
+    @EventHandler
+    public void serverStarting(FMLServerStartingEvent event) {
         serverInstance = event.getServer();
+        event.registerServerCommand(new ModCommands());
         ChineseUtils.load();
-        LOGGER.info(">>> [Bot] Starting Network...");
-        BotClient.getInstance().connect();
+        BotClient.getInstance()
+            .connect();
     }
 
-    @SubscribeEvent
-    public void onServerStopping(ServerStoppingEvent event) {
-        BotClient.getInstance().close("Server Stopping");
+    @EventHandler
+    public void serverStopping(FMLServerStoppingEvent event) {
+        BotClient.getInstance()
+            .close("Server stopping");
+        serverInstance = null;
     }
 }

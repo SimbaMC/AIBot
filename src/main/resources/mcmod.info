@@ -1,0 +1,13 @@
+{
+  "modListVersion": 2,
+  "modList": [{
+    "modid": "${modId}",
+    "name": "${modName}",
+    "description": "OneBot/QQ bridge, AI assistant, QQ binding and client music for GT New Horizons 2.8.4.",
+    "version": "${modVersion}",
+    "mcversion": "${minecraftVersion}",
+    "authorList": ["NEKROS"],
+    "credits": "GT New Horizons and Forge",
+    "requiredMods": ["Forge@[10.13.4.1614,)"]
+  }]
+}

@@ -1,62 +1,36 @@
 package com.bot.aibot.network;
 
-import com.bot.aibot.network.packet.*;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.network.NetworkDirection;
-import net.minecraftforge.network.NetworkRegistry;
-import net.minecraftforge.network.PacketDistributor;
-import net.minecraftforge.network.simple.SimpleChannel;
+import net.minecraft.entity.player.EntityPlayerMP;
 
-public class PacketHandler {
-    private static final String PROTOCOL_VERSION = "1";
-    public static final SimpleChannel INSTANCE = NetworkRegistry.newSimpleChannel(
-            new ResourceLocation("aibot", "main"),
-            () -> PROTOCOL_VERSION,
-            PROTOCOL_VERSION::equals,
-            PROTOCOL_VERSION::equals
-    );
+import com.bot.aibot.network.packet.C2SMusicActionPacket;
+import com.bot.aibot.network.packet.C2SReportMusicPacket;
+import com.bot.aibot.network.packet.S2CMusicCommandPacket;
+
+import cpw.mods.fml.common.network.NetworkRegistry;
+import cpw.mods.fml.common.network.simpleimpl.SimpleNetworkWrapper;
+import cpw.mods.fml.relauncher.Side;
+
+public final class PacketHandler {
+
+    public static final SimpleNetworkWrapper INSTANCE = NetworkRegistry.INSTANCE.newSimpleChannel("aibot");
+
+    private PacketHandler() {}
 
     public static void register() {
-        int id = 0;
-
-        INSTANCE.messageBuilder(C2SReportMusicPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
-                .decoder(C2SReportMusicPacket::new)
-                .encoder(C2SReportMusicPacket::encode)
-                .consumerMainThread(C2SReportMusicPacket::handle)
-                .add();
-
-        // 【新增】注册 C2SMusicActionPacket
-        INSTANCE.messageBuilder(C2SMusicActionPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
-                .decoder(C2SMusicActionPacket::new)
-                .encoder(C2SMusicActionPacket::encode)
-                .consumerMainThread(C2SMusicActionPacket::handle)
-                .add();
-
-        // --- 【新增】注册新包 ---
-        INSTANCE.messageBuilder(S2CMusicCommandPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .decoder(S2CMusicCommandPacket::new)
-                .encoder(S2CMusicCommandPacket::encode)
-                .consumerMainThread(S2CMusicCommandPacket::handle)
-                .add();
-
+        INSTANCE.registerMessage(C2SReportMusicPacket.Handler.class, C2SReportMusicPacket.class, 0, Side.SERVER);
+        INSTANCE.registerMessage(C2SMusicActionPacket.Handler.class, C2SMusicActionPacket.class, 1, Side.SERVER);
+        INSTANCE.registerMessage(S2CMusicCommandPacket.Handler.class, S2CMusicCommandPacket.class, 2, Side.CLIENT);
     }
 
-    // --- 新增以下方法 ---
-
-    /**
-     * 发送给指定玩家 (服务端 -> 客户端)
-     */
-    public static <MSG> void sendToPlayer(MSG message, ServerPlayer player) {
-        INSTANCE.send(PacketDistributor.PLAYER.with(() -> player), message);
+    public static void sendToPlayer(S2CMusicCommandPacket message, EntityPlayerMP player) {
+        INSTANCE.sendTo(message, player);
     }
 
-    public static <MSG> void sendToServer(MSG message) {
-        INSTANCE.sendToServer(message);
+    public static void sendToAll(S2CMusicCommandPacket message) {
+        INSTANCE.sendToAll(message);
     }
 
-    // 【新增】广播给所有人
-    public static <MSG> void sendToAll(MSG message) {
-        INSTANCE.send(PacketDistributor.ALL.noArg(), message);
+    public static void sendToServer(Object message) {
+        INSTANCE.sendToServer((cpw.mods.fml.common.network.simpleimpl.IMessage) message);
     }
 }
