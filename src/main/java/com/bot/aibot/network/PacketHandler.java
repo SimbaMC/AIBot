@@ -26,13 +26,6 @@ public class PacketHandler {
                 .consumerMainThread(C2SReportMusicPacket::handle)
                 .add();
 
-        // 【新增】注册 C2SMusicActionPacket
-        INSTANCE.messageBuilder(C2SMusicActionPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
-                .decoder(C2SMusicActionPacket::new)
-                .encoder(C2SMusicActionPacket::encode)
-                .consumerMainThread(C2SMusicActionPacket::handle)
-                .add();
-
         // --- 【新增】注册新包 ---
         INSTANCE.messageBuilder(S2CMusicCommandPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .decoder(S2CMusicCommandPacket::new)

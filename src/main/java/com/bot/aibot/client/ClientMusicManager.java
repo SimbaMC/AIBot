@@ -1,5 +1,6 @@
 package com.bot.aibot.client;
 
+import com.bot.aibot.security.SecureMusicStream;
 import javazoom.jl.decoder.Bitstream;
 import javazoom.jl.decoder.Decoder;
 import javazoom.jl.decoder.Header;
@@ -10,7 +11,6 @@ import net.minecraft.sounds.SoundSource;
 
 import javax.sound.sampled.*;
 import java.io.BufferedInputStream;
-import java.net.URL;
 
 public class ClientMusicManager {
     private static SourceDataLine line;
@@ -45,15 +45,7 @@ public class ClientMusicManager {
             mc.getSoundManager().stop(null, SoundSource.AMBIENT);
         } catch (Exception ignored) {}
 
-        // 3. UI 提示
-        if (mc.player != null) {
-            mc.player.displayClientMessage(
-                    Component.literal("§b♪ §f正在播放: §a" + name + " §b♪"),
-                    true
-            );
-        }
-
-        // 4. 初始化状态
+        // 3. 初始化状态；成功建立安全连接后再显示播放提示。
         currentDuration = duration;
         playStartTime = System.currentTimeMillis();
         totalPausedTime = 0;
@@ -65,7 +57,11 @@ public class ClientMusicManager {
             boolean finishedNaturally = false;
             long lastSuppressTime = 0;
 
-            try (BufferedInputStream in = new BufferedInputStream(new URL(url).openStream())) {
+            try (BufferedInputStream in = new BufferedInputStream(SecureMusicStream.open(url))) {
+                mc.execute(() -> {
+                    if (mc.player != null) mc.player.displayClientMessage(
+                            Component.literal("§b♪ §f正在播放: §a" + name + " §b♪"), true);
+                });
                 Bitstream bitstream = new Bitstream(in);
                 Decoder decoder = new Decoder();
 
@@ -118,9 +114,11 @@ public class ClientMusicManager {
                 }
 
                 if (isPlaying) finishedNaturally = true;
-            } catch (Throwable e) {
-                System.err.println(">>> [AiBot] 播放器线程崩溃: " + e.getMessage());
-                e.printStackTrace();
+            } catch (Exception e) {
+                System.err.println(">>> [AiBot] 音乐播放失败（地址详情已隐藏）: " + e.getClass().getSimpleName());
+                mc.execute(() -> {
+                    if (mc.player != null) mc.player.sendSystemMessage(Component.literal("§c[Bot] 音乐地址被拒绝或连接失败。"));
+                });
             } finally {
                 // 关键：无论是因为切歌、停止还是崩溃，都要恢复世界声音
                 cleanup();

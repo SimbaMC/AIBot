@@ -1,4 +1,16 @@
 1.20.1 Changelog
+AiBot 1.5.0
+============
+ - Harden client-resolved Netease playback with strict HTTPS CDN/DNS validation,
+   bounded redirect handling, timeouts, and reliable connection cleanup.
+ - Bound music packet fields and validate action/data/duration combinations.
+ - Move server DNS validation to a bounded executor; enforce authenticated
+   session identity and authoritative global broadcast cooldown.
+ - Remove the unused client global-stop packet that allowed arbitrary players
+   to stop broadcasts. Netease credentials remain exclusively client-side.
+ - Residual risk: the standard HTTPS connection performs a DNS lookup after
+   validation, leaving a minimized DNS TOCTOU window without global JVM changes.
+
 47.4
 ====
  - 47.4.10 Work around mixins targeting IForgePlayer#canReach (#10680)
@@ -1058,4 +1070,3 @@
             * Make "Potentially dangerous alternative prefix" a debug warning, not info.
             Co-authored-by: Curle <curle@gemwire.uk>
             Co-authored-by: sciwhiz12 <arnoldnunag12@gmail.com>
-

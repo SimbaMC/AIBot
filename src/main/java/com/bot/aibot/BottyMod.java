@@ -6,6 +6,7 @@ import com.bot.aibot.events.MinecraftEvents;
 import com.bot.aibot.events.ModCommands;
 import com.bot.aibot.network.BotClient;
 import com.bot.aibot.network.PacketHandler;
+import com.bot.aibot.security.MusicReportService;
 import com.bot.aibot.utils.ChineseUtils;
 import com.bot.aibot.utils.NeteaseApi;
 import net.minecraft.server.MinecraftServer;
@@ -64,5 +65,6 @@ public class BottyMod {
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
         BotClient.getInstance().close("Server Stopping");
+        MusicReportService.shutdown();
     }
 }

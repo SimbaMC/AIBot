@@ -1,6 +1,17 @@
 
 Source installation information for modders
 -------------------------------------------
+AiBot 1.5.0 music security architecture
+----------------------------------------
+Netease login cookies remain client-only. The client resolves a track URL and the
+server accepts only bounded HTTPS URLs on label-boundary subdomains of
+music.126.net whose complete DNS result is public. Global broadcasts use the
+server-configured cooldown; private reports return only to their authenticated
+sender. Playback disables automatic redirects and validates every redirect and
+DNS result. HttpsURLConnection performs its own DNS lookup after validation, so
+a small DNS time-of-check/time-of-use window remains; JVM DNS settings are not
+changed globally.
+
 This code follows the Minecraft Forge installation methodology. It will apply
 some small patches to the vanilla MCP source code, giving you and it access 
 to some of the data and functions you need to build a successful mod.

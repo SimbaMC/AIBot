@@ -1,19 +1,14 @@
 package com.bot.aibot.network.packet;
 
-import com.bot.aibot.network.PacketHandler;
+import com.bot.aibot.security.MusicReportService;
+import com.bot.aibot.network.PacketStrings;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.NetworkEvent;
-import net.minecraftforge.network.PacketDistributor;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.util.function.Supplier;
 
 public class C2SReportMusicPacket {
-    private static final Logger LOGGER = LogManager.getLogger();
-
     private final String url;
     private final String songName;
     private final long duration;
@@ -27,46 +22,33 @@ public class C2SReportMusicPacket {
     }
 
     public C2SReportMusicPacket(FriendlyByteBuf buf) {
-        this.url = buf.readUtf();
-        this.songName = buf.readUtf();
+        this.url = PacketStrings.readUtf8(buf, 2048, 2048);
+        this.songName = PacketStrings.readUtf8(buf, 1024, 256);
         this.duration = buf.readLong();
         this.isGlobal = buf.readBoolean(); // 【新增】
+        validateFields();
     }
 
     public void encode(FriendlyByteBuf buf) {
-        buf.writeUtf(this.url);
-        buf.writeUtf(this.songName);
+        validateFields();
+        PacketStrings.writeUtf8(buf, this.url, 2048, 2048);
+        PacketStrings.writeUtf8(buf, this.songName, 1024, 256);
         buf.writeLong(this.duration);
         buf.writeBoolean(this.isGlobal); // 【新增】
     }
 
     public void handle(Supplier<NetworkEvent.Context> ctx) {
-        ctx.get().enqueueWork(() -> {
-            ServerPlayer sender = ctx.get().getSender();
-            if (sender != null) {
-                LOGGER.info(">>> [Server] 收到歌曲上报: {} (全服: {})", songName, isGlobal);
+        NetworkEvent.Context context = ctx.get();
+        ServerPlayer sender = context.getSender();
+        if (sender != null) context.enqueueWork(() -> MusicReportService.submit(sender, url, songName, duration, isGlobal));
+        context.setPacketHandled(true);
+    }
 
-                // 构造播放指令
-                S2CMusicCommandPacket playPacket = new S2CMusicCommandPacket(
-                        S2CMusicCommandPacket.Action.PLAY_Direct,
-                        url,
-                        duration
-                );
-
-                if (isGlobal) {
-                    // --- 情况 A: 全服广播 ---
-                    PacketHandler.sendToAll(playPacket);
-
-                    // 广播消息
-                    String msg = "正在全服播放: §a" + songName;
-                    sender.getServer().getPlayerList().broadcastSystemMessage(Component.literal(msg), false);
-
-                } else {
-                    // --- 情况 B: 私享播放 ---
-                    PacketHandler.sendToPlayer(playPacket, sender);
-                }
-            }
-        });
-        ctx.get().setPacketHandled(true);
+    private void validateFields() {
+        if (url.isEmpty() || url.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 2048
+                || songName.isBlank() || songName.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 256
+                || duration <= 0 || duration > 86_400_000L) {
+            throw new IllegalArgumentException("Invalid music report");
+        }
     }
 }
