@@ -24,6 +24,7 @@ public class NeteaseApi {
     private static final Logger LOGGER = LogManager.getLogger();
 
     private static final String BASE_URL = "https://music.163.com";
+    private static final String PLAYBACK_CDN_SUFFIX = ".music.126.net";
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.45 Safari/537.36";
 
     // 1. Cookie 管理器
@@ -72,6 +73,7 @@ public class NeteaseApi {
                 String[] kv = part.trim().split("=", 2);
                 if (kv.length == 2) {
                     HttpCookie cookie = new HttpCookie(kv[0], kv[1]);
+                    cookie.setVersion(0);
                     cookie.setPath("/");
                     cookie.setDomain(".music.163.com");
                     store.add(uri, cookie);
@@ -161,18 +163,46 @@ public class NeteaseApi {
             String cookie = "";
 
             if (code == 803) {
+                if (root.has("cookie") && !root.get("cookie").isJsonNull()) {
+                    mergeCookies(root.get("cookie").getAsString());
+                }
                 StringBuilder sb = new StringBuilder();
                 cookieManager.getCookieStore().getCookies().forEach(c ->
                         sb.append(c.getName()).append("=").append(c.getValue()).append("; ")
                 );
                 cookie = sb.toString();
-                if (cookie.isEmpty() && root.has("cookie")) {
-                    cookie = root.get("cookie").getAsString();
-                }
             }
             return new LoginResult(code, cookie, root.has("message") ? root.get("message").getAsString() : "");
         } catch (Exception e) { e.printStackTrace(); }
         return new LoginResult(800, null, "接口异常");
+    }
+
+    private static void mergeCookies(String cookieString) {
+        if (cookieString == null || cookieString.isEmpty()) return;
+        URI uri = URI.create(BASE_URL);
+        CookieStore store = cookieManager.getCookieStore();
+        for (String part : cookieString.split(";")) {
+            String[] pair = part.trim().split("=", 2);
+            if (pair.length != 2 || pair[0].isEmpty() || isCookieAttribute(pair[0])) continue;
+            try {
+                HttpCookie cookie = new HttpCookie(pair[0], pair[1]);
+                cookie.setVersion(0);
+                cookie.setPath("/");
+                cookie.setDomain(".music.163.com");
+                store.add(uri, cookie);
+            } catch (IllegalArgumentException ignored) {
+                // Ignore malformed fields without exposing cookie contents in logs.
+            }
+        }
+    }
+
+    private static boolean isCookieAttribute(String name) {
+        return "path".equalsIgnoreCase(name) || "domain".equalsIgnoreCase(name)
+                || "expires".equalsIgnoreCase(name) || "max-age".equalsIgnoreCase(name)
+                || "samesite".equalsIgnoreCase(name) || "secure".equalsIgnoreCase(name)
+                || "httponly".equalsIgnoreCase(name) || "version".equalsIgnoreCase(name)
+                || "comment".equalsIgnoreCase(name) || "priority".equalsIgnoreCase(name)
+                || "partitioned".equalsIgnoreCase(name);
     }
 
     // 搜索 (返回第一首 ID)
@@ -200,9 +230,24 @@ public class NeteaseApi {
             JsonObject root = JsonParser.parseString(jsonResp).getAsJsonObject();
             if (root.get("code").getAsInt() == 200) {
                 JsonArray arr = root.getAsJsonArray("data");
-                if(arr.size() > 0) return arr.get(0).getAsJsonObject().get("url").getAsString();
+                if(arr.size() > 0) return securePlaybackUrl(arr.get(0).getAsJsonObject().get("url").getAsString());
             }
         } catch (Exception e) {} return null;
+    }
+
+    private static String securePlaybackUrl(String value) {
+        if (value == null) return null;
+        try {
+            URI uri = new URI(value);
+            String host = uri.getHost();
+            if (!"http".equalsIgnoreCase(uri.getScheme()) || uri.getRawUserInfo() != null
+                    || uri.getPort() != -1 || host == null) return value;
+            host = IDN.toASCII(host, IDN.USE_STD3_ASCII_RULES).toLowerCase(Locale.ROOT);
+            if (!host.endsWith(PLAYBACK_CDN_SUFFIX) || host.length() == PLAYBACK_CDN_SUFFIX.length()) return value;
+            return "https" + value.substring(value.indexOf(':'));
+        } catch (URISyntaxException ignored) {
+            return value;
+        }
     }
 
     // 获取 UID

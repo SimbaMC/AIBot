@@ -1,11 +1,13 @@
 
 Source installation information for modders
 -------------------------------------------
-AiBot 1.5.0 music security architecture
+AiBot 1.5.1 music security architecture
 ----------------------------------------
 Netease login cookies remain client-only. The client resolves a track URL and the
 server accepts only bounded HTTPS URLs on label-boundary subdomains of
-music.126.net whose complete DNS result is public. Global broadcasts use the
+music.126.net whose complete DNS result is public, apart from the narrowly
+scoped 198.18.0.0/15 range used by Clash enhanced DNS. TLS hostname verification
+remains required for those proxy addresses. Global broadcasts use the
 server-configured cooldown; private reports return only to their authenticated
 sender. Playback disables automatic redirects and validates every redirect and
 DNS result. HttpsURLConnection performs its own DNS lookup after validation, so

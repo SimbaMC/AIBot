@@ -1,4 +1,14 @@
 1.20.1 Changelog
+AiBot 1.5.1
+============
+ - Restore persisted Netease cookies as browser-compatible version-0 cookies.
+ - Merge QR-login response cookies without logging account credentials.
+ - Upgrade HTTP playback URLs to HTTPS only for strict music.126.net CDN hosts.
+ - Support Clash enhanced-DNS 198.18.0.0/15 fake IPs only after strict HTTPS
+   Netease CDN validation; TLS hostname verification remains required.
+ - Clean CI builds and publish exactly one non-slim runtime JAR under
+   Forge 1.20.1 version tags.
+
 AiBot 1.5.0
 ============
  - Harden client-resolved Netease playback with strict HTTPS CDN/DNS validation,

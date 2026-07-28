@@ -56,9 +56,19 @@ public final class MusicUrlPolicy {
         }
         if (addresses.length == 0) throw new MusicUrlException("音乐 CDN DNS 无结果");
         for (InetAddress address : addresses) {
-            if (!isPublic(address)) throw new MusicUrlException("音乐 CDN 解析到非公网地址");
+            if (!isPublic(address) && !isAllowedProxyFakeIp(address)) {
+                throw new MusicUrlException("音乐 CDN 解析到非公网地址");
+            }
         }
         return uri;
+    }
+
+    private static boolean isAllowedProxyFakeIp(InetAddress address) {
+        // The URL has already passed strict HTTPS, standard-port and Netease CDN hostname checks.
+        // TLS hostname verification remains enabled by SecureMusicStream.
+        if (!(address instanceof Inet4Address)) return false;
+        byte[] bytes = address.getAddress();
+        return (bytes[0] & 0xff) == 198 && ((bytes[1] & 0xff) == 18 || (bytes[1] & 0xff) == 19);
     }
 
     private static boolean isIpLiteral(String host) {
