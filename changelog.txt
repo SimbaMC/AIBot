@@ -1,3 +1,10 @@
+1.5.1-gtnh284
+- Fixed QR login completion so a successful scan leaves the QR view and restores the music player immediately.
+- Fixed restored Netease cookies and merged login response cookies before local persistence.
+- Added secure HTTPS normalization for Netease playback CDN URLs and narrowly scoped Clash fake-IP compatibility.
+- Added explicit server validation feedback, authoritative cooldown reset, and corrected responsive GUI hit bounds.
+- Fixed CI/CD runtime JAR discovery so version bumps upload and release exactly one current artifact.
+
 1.0.2-gtnh284
 - Fixed dedicated-server achievement crashes by removing the client-only achievement description API call.
 - Routed WebSocket and AI callbacks through the server tick thread.

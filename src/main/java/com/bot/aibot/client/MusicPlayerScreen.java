@@ -73,10 +73,22 @@ public final class MusicPlayerScreen extends GuiScreen {
     private QrCode qr;
     private int panelLeft, panelTop, panelRight, panelBottom;
     private int listLeft, listTop, listRight, listBottom, statusY;
+    private boolean layoutTooSmall;
 
     public void initGui() {
         String previousSearch = search == null ? "" : search.getText();
         buttonList.clear();
+        layoutTooSmall = width < 270 || height < 150;
+        if (layoutTooSmall) {
+            panelLeft = 4;
+            panelTop = 4;
+            panelRight = Math.max(5, width - 4);
+            panelBottom = Math.max(5, height - 4);
+            search = null;
+            slot = null;
+            addAt(99, Math.max(4, width / 2 - 30), Math.max(28, height - 28), 60, "关闭");
+            return;
+        }
         int panelWidth = Math.max(1, Math.min(320, width - 8));
         int panelHeight = Math.max(1, Math.min(230, height - 8));
         panelLeft = (width - panelWidth) / 2;
@@ -156,7 +168,8 @@ public final class MusicPlayerScreen extends GuiScreen {
     }
 
     protected void actionPerformed(GuiButton b) {
-        if (b.id == 1) {
+        if (b.id == 99) mc.displayGuiScreen(null);
+        else if (b.id == 1) {
             tab = Tab.SEARCH;
             playlistFolders = false;
             search.setFocused(true);
@@ -462,13 +475,13 @@ public final class MusicPlayerScreen extends GuiScreen {
             mc.displayGuiScreen(null);
             return;
         }
-        if (search.textboxKeyTyped(c, key)) return;
+        if (search != null && search.textboxKeyTyped(c, key)) return;
         super.keyTyped(c, key);
     }
 
     protected void mouseClicked(int x, int y, int b) {
         super.mouseClicked(x, y, b);
-        search.mouseClicked(x, y, b);
+        if (search != null) search.mouseClicked(x, y, b);
     }
 
     public void handleMouseInput() {
@@ -482,6 +495,11 @@ public final class MusicPlayerScreen extends GuiScreen {
     public void drawScreen(int x, int y, float pt) {
         drawDefaultBackground();
         drawRect(panelLeft, panelTop, panelRight, panelBottom, 0xdd101010);
+        if (layoutTooSmall) {
+            drawCenteredString(fontRendererObj, "窗口过小，请放大后重试", width / 2, Math.max(10, height / 2 - 5), 0xffffff);
+            super.drawScreen(x, y, pt);
+            return;
+        }
         if (qr != null) drawQr();
         else drawMusicList(x, y, pt);
         drawCenteredString(fontRendererObj, "AiBot 网易云音乐", width / 2, panelTop + 5, 0xffffff);
@@ -576,6 +594,8 @@ public final class MusicPlayerScreen extends GuiScreen {
 
         MusicSlot(Minecraft m, int screenWidth, int screenHeight, int t, int b) {
             super(m, screenWidth, screenHeight, t, b, 20);
+            this.left = listLeft;
+            this.right = listRight;
         }
 
         protected int getSize() {

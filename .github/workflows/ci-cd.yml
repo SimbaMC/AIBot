@@ -2,7 +2,7 @@ name: Build and Release Forge 1.7.10
 on:
   push:
     branches: ["1.7.10"]
-    tags: ["*"]
+    tags: ["gtnh-2.8.4-*"]
   pull_request:
     branches: ["1.7.10"]
 permissions:
@@ -17,14 +17,28 @@ jobs:
           distribution: temurin
           java-version: "17"
           cache: gradle
-      - run: chmod +x gradlew && ./gradlew --no-daemon --max-workers=1 build
+      - run: chmod +x gradlew && ./gradlew --no-daemon --max-workers=1 clean build
+      - id: artifact
+        name: Locate runtime JAR
+        shell: bash
+        run: |
+          mapfile -t jars < <(find build/libs -maxdepth 1 -type f \
+            -name 'AiBot-MC1.7.10-GTNH2.8.4-*.jar' \
+            ! -name '*-dev*' ! -name '*-sources*' | sort)
+          if [[ ${#jars[@]} -ne 1 ]]; then
+            printf 'Expected exactly one runtime JAR, found %d\n' "${#jars[@]}" >&2
+            printf '%s\n' "${jars[@]}" >&2
+            exit 1
+          fi
+          echo "path=${jars[0]}" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "${jars[0]}" .jar)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
-          name: AiBot-MC1.7.10-GTNH2.8.4-1.5.0-gtnh284
-          path: build/libs/AiBot-MC1.7.10-GTNH2.8.4-1.5.0-gtnh284.jar
+          name: ${{ steps.artifact.outputs.name }}
+          path: ${{ steps.artifact.outputs.path }}
           if-no-files-found: error
       - if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/libs/AiBot-MC1.7.10-GTNH2.8.4-1.5.0-gtnh284.jar
+          files: ${{ steps.artifact.outputs.path }}
           generate_release_notes: true
