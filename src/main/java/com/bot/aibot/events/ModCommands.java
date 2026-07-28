@@ -9,6 +9,7 @@ import com.bot.aibot.config.BotConfig;
 import com.bot.aibot.network.BotClient;
 import com.bot.aibot.network.PacketHandler;
 import com.bot.aibot.network.packet.S2CMusicCommandPacket;
+import com.bot.aibot.security.MusicReportService;
 
 public class ModCommands extends CommandBase {
 
@@ -45,10 +46,11 @@ public class ModCommands extends CommandBase {
                 .sendToPlayer(new S2CMusicCommandPacket(S2CMusicCommandPacket.Action.STOP), (EntityPlayerMP) sender);
         } else if (sender instanceof EntityPlayerMP && "cd".equalsIgnoreCase(args[0])
             && sender.canCommandSenderUseCommand(2, "bot")) {
+                MusicReportService.resetBroadcastCooldown();
                 PacketHandler.sendToPlayer(
                     new S2CMusicCommandPacket(S2CMusicCommandPacket.Action.RESET_COOLDOWN),
                     (EntityPlayerMP) sender);
-                sender.addChatMessage(new ChatComponentText("§e[Bot] 已发送重置冷却指令。"));
+                sender.addChatMessage(new ChatComponentText("§a[Bot] 全服播放冷却已重置。"));
             } else sender.addChatMessage(new ChatComponentText(getCommandUsage(sender)));
     }
 }

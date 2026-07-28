@@ -13,6 +13,9 @@ import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiSlot;
 import net.minecraft.client.gui.GuiTextField;
+import net.minecraft.client.gui.ScaledResolution;
+
+import org.lwjgl.opengl.GL11;
 
 import com.bot.aibot.API.QrCode;
 import com.bot.aibot.network.PacketHandler;
@@ -61,31 +64,65 @@ public final class MusicPlayerScreen extends GuiScreen {
     private Tab tab = Tab.SEARCH;
     private GuiTextField search;
     private MusicSlot slot;
-    private boolean playlistFolders, loggedIn, qrLoading;
-    private long loginGeneration;
+    private boolean playlistFolders, loggedIn;
+    private volatile boolean qrLoading;
+    private volatile long loginGeneration;
     private List<Long> allIds = new ArrayList<Long>();
     private int page;
     private String status = "";
     private QrCode qr;
+    private int panelLeft, panelTop, panelRight, panelBottom;
+    private int listLeft, listTop, listRight, listBottom, statusY;
 
     public void initGui() {
+        String previousSearch = search == null ? "" : search.getText();
         buttonList.clear();
-        search = new GuiTextField(fontRendererObj, width / 2 - 150, height / 2 - 82, 190, 18);
+        int panelWidth = Math.max(1, Math.min(320, width - 8));
+        int panelHeight = Math.max(1, Math.min(230, height - 8));
+        panelLeft = (width - panelWidth) / 2;
+        panelTop = (height - panelHeight) / 2;
+        panelRight = panelLeft + panelWidth;
+        panelBottom = panelTop + panelHeight;
+        int padding = panelWidth < 290 ? 6 : 10;
+        int innerLeft = panelLeft + padding;
+        int innerRight = panelRight - padding;
+
+        int tabY = panelTop + 20;
+        addAt(1, innerLeft, tabY, 48, "搜索");
+        addAt(2, innerLeft + 54, tabY, 58, "我的喜欢");
+        addAt(3, innerLeft + 118, tabY, 58, "我的歌单");
+
+        int searchY = panelTop + 45;
+        int loginWidth = 48, goWidth = 42, rowGap = 5;
+        int loginX = innerRight - loginWidth;
+        int goX = loginX - rowGap - goWidth;
+        int searchWidth = Math.max(40, goX - rowGap - innerLeft);
+        search = new GuiTextField(fontRendererObj, innerLeft, searchY, searchWidth, 18);
         search.setMaxStringLength(80);
-        slot = new MusicSlot(mc, width / 2 - 155, width / 2 + 155, height / 2 - 55, height / 2 + 65);
-        add(1, -150, -110, 48, "搜索");
-        add(2, -95, -110, 58, "我的喜欢");
-        add(3, -30, -110, 58, "我的歌单");
-        add(4, 50, -82, 45, "GO");
-        add(5, 102, -82, 45, "登录");
-        add(10, -150, 78, 25, "|<");
-        add(11, -120, 78, 28, "||");
-        add(12, -87, 78, 25, ">|");
-        add(13, -57, 78, 25, "■");
-        add(14, -25, 78, 48, modeName());
-        add(15, 28, 78, 58, global ? "全服" : "私享");
-        add(16, 92, 78, 25, "<");
-        add(17, 122, 78, 25, ">");
+        search.setText(previousSearch);
+        search.setFocused(tab == Tab.SEARCH);
+        addAt(4, goX, searchY - 1, goWidth, "GO");
+        addAt(5, loginX, searchY - 1, loginWidth, "登录");
+
+        int controlsY = panelBottom - 24;
+        statusY = controlsY - 13;
+        listLeft = innerLeft;
+        listRight = innerRight;
+        listTop = panelTop + 69;
+        listBottom = statusY - 4;
+        slot = new MusicSlot(mc, width, height, listTop, listBottom);
+
+        int[] controlWidths = { 24, 26, 24, 24, 44, 52, 24, 24 };
+        int[] controlIds = { 10, 11, 12, 13, 14, 15, 16, 17 };
+        String[] controlLabels = { "|<", "||", ">|", "■", modeName(), global ? "全服" : "私享", "<", ">" };
+        int controlGap = panelWidth < 280 ? 2 : 4;
+        int controlsWidth = controlGap * (controlWidths.length - 1);
+        for (int controlWidth : controlWidths) controlsWidth += controlWidth;
+        int controlX = panelLeft + (panelWidth - controlsWidth) / 2;
+        for (int i = 0; i < controlWidths.length; i++) {
+            addAt(controlIds[i], controlX, controlsY, controlWidths[i], controlLabels[i]);
+            controlX += controlWidths[i] + controlGap;
+        }
         NeteaseApi.loadCookies();
         async(new Runnable() {
 
@@ -95,7 +132,13 @@ public final class MusicPlayerScreen extends GuiScreen {
 
                     public void run() {
                         loggedIn = ok;
+                        if (ok && qrLoading) {
+                            loginGeneration++;
+                            qrLoading = false;
+                            qr = null;
+                        }
                         status = ok ? "已登录" : "请扫码登录";
+                        setLoginButtonText();
                     }
                 });
             }
@@ -108,19 +151,22 @@ public final class MusicPlayerScreen extends GuiScreen {
         };
     }
 
-    private void add(int id, int x, int y, int w, String text) {
-        buttonList.add(new GuiButton(id, width / 2 + x, height / 2 + y, w, 20, text));
+    private void addAt(int id, int x, int y, int w, String text) {
+        buttonList.add(new GuiButton(id, x, y, w, 20, text));
     }
 
     protected void actionPerformed(GuiButton b) {
         if (b.id == 1) {
             tab = Tab.SEARCH;
             playlistFolders = false;
+            search.setFocused(true);
         } else if (b.id == 2) {
             tab = Tab.LIKES;
+            search.setFocused(false);
             loadLikes();
         } else if (b.id == 3) {
             tab = Tab.PLAYLISTS;
+            search.setFocused(false);
             loadPlaylists();
         } else if (b.id == 4) doSearch();
         else if (b.id == 5) startLogin();
@@ -253,6 +299,12 @@ public final class MusicPlayerScreen extends GuiScreen {
     private void play(final SongInfo song) {
         current = song;
         final boolean broadcast = global;
+        ClientMusicManager.onTrackFinishedCallback = broadcast ? null : new Runnable() {
+
+            public void run() {
+                switchSong(true, true);
+            }
+        };
         global = false;
         for (Object o : buttonList) if (((GuiButton) o).id == 15) ((GuiButton) o).displayString = "私享";
         status = "解析播放地址...";
@@ -270,6 +322,7 @@ public final class MusicPlayerScreen extends GuiScreen {
                         if (broadcast) lastBroadcast = System.currentTimeMillis();
                         PacketHandler.sendToServer(
                             new C2SReportMusicPacket(url, song.name + " - " + song.artist, song.duration, broadcast));
+                        status = "等待服务器验证播放地址...";
                     }
                 });
             }
@@ -288,10 +341,11 @@ public final class MusicPlayerScreen extends GuiScreen {
     }
 
     private void startLogin() {
-        if (qrLoading) return;
+        if (qrLoading || loggedIn) return;
         qrLoading = true;
         final long login = ++loginGeneration;
         status = "获取二维码...";
+        setLoginButtonText();
         async(new Runnable() {
 
             public void run() {
@@ -300,8 +354,10 @@ public final class MusicPlayerScreen extends GuiScreen {
                     ui(new Runnable() {
 
                         public void run() {
+                            if (login != loginGeneration) return;
                             status = "二维码接口失败";
                             qrLoading = false;
+                            setLoginButtonText();
                         }
                     });
                     return;
@@ -311,7 +367,9 @@ public final class MusicPlayerScreen extends GuiScreen {
                     ui(new Runnable() {
 
                         public void run() {
+                            if (!isLoginCurrent(login)) return;
                             qr = code;
+                            status = "请使用网易云 APP 扫码";
                         }
                     });
                 } catch (Exception e) {
@@ -320,6 +378,7 @@ public final class MusicPlayerScreen extends GuiScreen {
                         public void run() {
                             status = "二维码生成失败";
                             qrLoading = false;
+                            setLoginButtonText();
                         }
                     });
                     return;
@@ -330,11 +389,15 @@ public final class MusicPlayerScreen extends GuiScreen {
 
                         public void run() {
                             if (!isLoginCurrent(login)) return;
-                            status = r.code == 802 ? "请在手机确认" : r.code == 803 ? "登录成功" : "等待扫码...";
+                            status = loginStatus(r);
                             if (r.code == 803) {
                                 loggedIn = true;
                                 qrLoading = false;
                                 qr = null;
+                                setLoginButtonText();
+                            } else if (r.code == 800) {
+                                qrLoading = false;
+                                setLoginButtonText();
                             }
                         }
                     });
@@ -351,10 +414,43 @@ public final class MusicPlayerScreen extends GuiScreen {
         });
     }
 
+    private String loginStatus(NeteaseApi.LoginResult result) {
+        if (result.code == 800) return "二维码已过期，请重新登录";
+        if (result.code == 801) return "等待扫码...";
+        if (result.code == 802) return "请在手机确认";
+        if (result.code == 803) return "登录成功";
+        return result.message == null || result.message.length() == 0 ? "登录接口异常，正在重试..." : result.message + "，正在重试...";
+    }
+
+    private void setLoginButtonText() {
+        for (Object button : buttonList) {
+            GuiButton guiButton = (GuiButton) button;
+            if (guiButton.id == 5) {
+                guiButton.displayString = loggedIn ? "已登录" : "登录";
+                guiButton.enabled = !loggedIn && !qrLoading;
+                return;
+            }
+        }
+    }
+
     public void onGuiClosed() {
         loginGeneration++;
         qrLoading = false;
         qr = null;
+    }
+
+    public boolean doesGuiPauseGame() {
+        return false;
+    }
+
+    static void showPlaybackStarted(boolean broadcast) {
+        if (Minecraft.getMinecraft().currentScreen instanceof MusicPlayerScreen)
+            ((MusicPlayerScreen) Minecraft.getMinecraft().currentScreen).status = broadcast ? "正在全服播放" : "正在播放";
+    }
+
+    static void showPlaybackRejected(String message) {
+        if (Minecraft.getMinecraft().currentScreen instanceof MusicPlayerScreen)
+            ((MusicPlayerScreen) Minecraft.getMinecraft().currentScreen).status = message;
     }
 
     private boolean isLoginCurrent(long login) {
@@ -385,23 +481,52 @@ public final class MusicPlayerScreen extends GuiScreen {
 
     public void drawScreen(int x, int y, float pt) {
         drawDefaultBackground();
-        drawRect(width / 2 - 160, height / 2 - 120, width / 2 + 160, height / 2 + 110, 0xdd101010);
-        drawCenteredString(fontRendererObj, "AiBot 网易云音乐", width / 2, height / 2 - 115, 0xffffff);
-        if (tab == Tab.SEARCH) search.drawTextBox();
+        drawRect(panelLeft, panelTop, panelRight, panelBottom, 0xdd101010);
         if (qr != null) drawQr();
-        else slot.drawScreen(x, y, pt);
-        drawString(fontRendererObj, status, width / 2 - 150, height / 2 + 68, 0xaaaaaa);
-        if (ClientMusicManager.isPlaying()) drawString(
+        else drawMusicList(x, y, pt);
+        drawCenteredString(fontRendererObj, "AiBot 网易云音乐", width / 2, panelTop + 5, 0xffffff);
+        if (tab == Tab.SEARCH && qr == null) search.drawTextBox();
+        drawString(
             fontRendererObj,
-            format(ClientMusicManager.getProgress()) + " / " + format(ClientMusicManager.currentDuration),
-            width / 2 + 45,
-            height / 2 + 68,
-            0x55ff88);
+            fontRendererObj.trimStringToWidth(status, Math.max(20, listRight - listLeft - 90)),
+            listLeft,
+            statusY,
+            0xaaaaaa);
+        if (ClientMusicManager.isPlaying()) {
+            String progress = format(ClientMusicManager.getProgress()) + " / "
+                + format(ClientMusicManager.currentDuration);
+            drawString(
+                fontRendererObj,
+                progress,
+                listRight - fontRendererObj.getStringWidth(progress),
+                statusY,
+                0x55ff88);
+        }
         super.drawScreen(x, y, pt);
     }
 
+    private void drawMusicList(int x, int y, float pt) {
+        ScaledResolution scaled = new ScaledResolution(mc, mc.displayWidth, mc.displayHeight);
+        int factor = scaled.getScaleFactor();
+        GL11.glEnable(GL11.GL_SCISSOR_TEST);
+        GL11.glScissor(
+            listLeft * factor,
+            mc.displayHeight - listBottom * factor,
+            Math.max(1, listRight - listLeft) * factor,
+            Math.max(1, listBottom - listTop) * factor);
+        try {
+            slot.drawScreen(x, y, pt);
+        } finally {
+            GL11.glDisable(GL11.GL_SCISSOR_TEST);
+        }
+    }
+
     private void drawQr() {
-        int scale = Math.max(2, Math.min(4, 100 / qr.size)), sx = width / 2 - qr.size * scale / 2, sy = height / 2 - 55;
+        int availableWidth = Math.max(1, listRight - listLeft - 10);
+        int availableHeight = Math.max(1, listBottom - listTop - 10);
+        int scale = Math.max(1, Math.min(4, Math.min(availableWidth / qr.size, availableHeight / qr.size)));
+        int sx = width / 2 - qr.size * scale / 2;
+        int sy = listTop + (listBottom - listTop - qr.size * scale) / 2;
         drawRect(sx - 5, sy - 5, sx + qr.size * scale + 5, sy + qr.size * scale + 5, 0xffffffff);
         for (int y = 0; y < qr.size; y++) for (int x = 0; x < qr.size; x++) if (qr.getModule(x, y))
             drawRect(sx + x * scale, sy + y * scale, sx + (x + 1) * scale, sy + (y + 1) * scale, 0xff000000);
@@ -449,10 +574,8 @@ public final class MusicPlayerScreen extends GuiScreen {
 
     private final class MusicSlot extends GuiSlot {
 
-        MusicSlot(Minecraft m, int l, int r, int t, int b) {
-            super(m, r - l, b - t, t, b, 20);
-            this.left = l;
-            this.right = r;
+        MusicSlot(Minecraft m, int screenWidth, int screenHeight, int t, int b) {
+            super(m, screenWidth, screenHeight, t, b, 20);
         }
 
         protected int getSize() {
@@ -480,15 +603,19 @@ public final class MusicPlayerScreen extends GuiScreen {
                 SongInfo s = songs.get(i);
                 a = s.name + " - " + s.artist;
             }
-            fontRendererObj.drawString(fontRendererObj.trimStringToWidth(a, 285), x + 5, y + 5, 0xdddddd);
+            fontRendererObj.drawString(
+                fontRendererObj.trimStringToWidth(a, Math.max(20, getListWidth() - 20)),
+                x + 5,
+                y + 5,
+                0xdddddd);
         }
 
         public int getListWidth() {
-            return 310;
+            return Math.max(20, listRight - listLeft);
         }
 
         protected int getScrollBarX() {
-            return width / 2 + 145;
+            return listRight - 6;
         }
     }
 }

@@ -3,6 +3,7 @@ package com.bot.aibot.security;
 import java.net.URI;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -38,6 +39,7 @@ public final class MusicReportService {
                             }
                         });
                     } catch (Exception e) {
+                        BottyMod.LOG.warn("Rejected a music URL reported by {}: {}", id, e.getMessage());
                         ServerTaskQueue.submit(new Runnable() {
 
                             public void run() {
@@ -62,7 +64,7 @@ public final class MusicReportService {
         EntityPlayerMP sender = current(id, session);
         if (sender == null) return;
         S2CMusicCommandPacket packet = new S2CMusicCommandPacket(
-            S2CMusicCommandPacket.Action.PLAY_DIRECT,
+            global ? S2CMusicCommandPacket.Action.PLAY_DIRECT_BROADCAST : S2CMusicCommandPacket.Action.PLAY_DIRECT,
             url,
             duration);
         if (!global) {
@@ -98,12 +100,17 @@ public final class MusicReportService {
     }
 
     private static void reject(EntityPlayerMP p, String m) {
+        PacketHandler.sendToPlayer(new S2CMusicCommandPacket(S2CMusicCommandPacket.Action.PLAY_REJECTED, m, 0), p);
         p.addChatMessage(new ChatComponentText("§c[Bot] " + m));
     }
 
     public static synchronized void shutdown() {
         if (validator != null) validator.shutdownNow();
         validator = null;
+        nextGlobalAt = 0;
+    }
+
+    public static void resetBroadcastCooldown() {
         nextGlobalAt = 0;
     }
 
@@ -114,6 +121,14 @@ public final class MusicReportService {
             30,
             TimeUnit.SECONDS,
             new ArrayBlockingQueue<Runnable>(32),
+            new ThreadFactory() {
+
+                public Thread newThread(Runnable runnable) {
+                    Thread thread = new Thread(runnable, "AiBot-Music-URL-Validator");
+                    thread.setDaemon(true);
+                    return thread;
+                }
+            },
             new ThreadPoolExecutor.AbortPolicy());
         return validator;
     }

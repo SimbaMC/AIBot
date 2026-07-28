@@ -53,9 +53,18 @@ public final class MusicUrlPolicy {
             throw new MusicUrlException("DNS failed", e);
         }
         if (addresses.length == 0) throw new MusicUrlException("DNS returned no addresses");
-        for (InetAddress address : addresses)
-            if (!isPublic(address)) throw new MusicUrlException("DNS returned a non-public address");
+        for (InetAddress address : addresses) if (!isPublic(address) && !isAllowedProxyFakeIp(address))
+            throw new MusicUrlException("DNS returned a non-public address");
         return uri;
+    }
+
+    private static boolean isAllowedProxyFakeIp(InetAddress address) {
+        // Clash-style enhanced DNS maps remote hosts into 198.18.0.0/15. This policy has
+        // already restricted the target to an HTTPS Netease CDN hostname, so TLS hostname
+        // verification still prevents this exception from becoming access to an arbitrary LAN service.
+        if (!(address instanceof Inet4Address)) return false;
+        byte[] b = address.getAddress();
+        return (b[0] & 255) == 198 && ((b[1] & 255) == 18 || (b[1] & 255) == 19);
     }
 
     private static boolean isIpLiteral(String host) {

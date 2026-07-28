@@ -19,7 +19,9 @@ public class S2CMusicCommandPacket implements IMessage {
         SEARCH_AND_PLAY,
         OPEN_GUI,
         PLAY_MY_LIKE,
-        RESET_COOLDOWN
+        RESET_COOLDOWN,
+        PLAY_DIRECT_BROADCAST,
+        PLAY_REJECTED
     }
 
     public Action action;
@@ -68,15 +70,18 @@ public class S2CMusicCommandPacket implements IMessage {
         if (action == null || data == null) throw new IllegalArgumentException("Invalid music command");
         int size = data.getBytes(StandardCharsets.UTF_8).length;
         if (size > MAX_DATA_BYTES) throw new IllegalArgumentException("Music command data is too long");
-        if (action == Action.PLAY_DIRECT && (size == 0 || extra <= 0 || extra > 86400000L))
+        boolean direct = action == Action.PLAY_DIRECT || action == Action.PLAY_DIRECT_BROADCAST;
+        if (direct && (size == 0 || extra <= 0 || extra > 86400000L))
             throw new IllegalArgumentException("Invalid direct-play command");
         if (action == Action.SEARCH_AND_PLAY && (size == 0 || size > 256 || extra != 0 && extra != 1))
             throw new IllegalArgumentException("Invalid search command");
         if (action == Action.PLAY_MY_LIKE && (size != 0 || extra != 0))
             throw new IllegalArgumentException("Invalid likes command");
+        if (action == Action.PLAY_REJECTED && (size == 0 || size > 256 || extra != 0))
+            throw new IllegalArgumentException("Invalid rejection message");
         if ((action == Action.STOP || action == Action.OPEN_GUI || action == Action.RESET_COOLDOWN)
             && (size != 0 || extra != 0)) throw new IllegalArgumentException("Unexpected music command data");
-        if (action != Action.PLAY_DIRECT && action != Action.SEARCH_AND_PLAY && extra != 0)
+        if (!direct && action != Action.SEARCH_AND_PLAY && extra != 0)
             throw new IllegalArgumentException("Unexpected music command data");
     }
 
