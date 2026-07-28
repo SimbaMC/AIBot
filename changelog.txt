@@ -1060,10 +1060,10 @@
             Co-authored-by: sciwhiz12 <arnoldnunag12@gmail.com>
 
 1.21.1 NeoForge Changelog
-AiBot 1.5.0
+AiBot 1.5.1
 ============
- - Restored functional NeoForge 1.21.1 custom-payload networking and full music behavior.
- - Kept Netease cookies client-only and relayed only bounded resolved URLs/song metadata.
- - Added strict HTTPS music.126.net and public DNS validation on server and every client redirect.
- - Added bounded asynchronous validation, authenticated sender recheck, and global server cooldown.
- - Removed the unused global STOP C2S packet; added timeouts, redirect limits, and connection cleanup.
+ - Restore persisted and QR-login Netease cookies as browser-compatible cookies.
+ - Upgrade HTTP playback URLs only for strict music.126.net CDN subdomains.
+ - Allow Clash enhanced-DNS fake IPs while retaining HTTPS hostname verification.
+ - Clean CI builds and publish exactly one non-slim runtime JAR under
+   NeoForge 1.21.1 version tags.

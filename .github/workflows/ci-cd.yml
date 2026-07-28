@@ -5,7 +5,7 @@ on:
     branches:
       - main
     tags:
-      - '*'
+      - 'neoforge-1.21.1-*'
 
 permissions:
   contents: write
@@ -26,18 +26,30 @@ jobs:
           cache: gradle
 
       - name: Build mod JAR
-        run: JAVA_TOOL_OPTIONS='-Xmx512m -Xss512k -XX:+UseSerialGC' ./gradlew --no-daemon --max-workers=1 build
+        run: JAVA_TOOL_OPTIONS='-Xmx512m -Xss512k -XX:+UseSerialGC' ./gradlew --no-daemon --max-workers=1 clean build
+
+      - name: Locate runtime JAR
+        id: runtime-jar
+        shell: bash
+        run: |
+          mapfile -t jars < <(find build/libs -maxdepth 1 -type f -name 'aibot-*.jar' ! -name '*-slim.jar' | sort)
+          if [ "${#jars[@]}" -ne 1 ]; then
+            printf 'Expected exactly one runtime JAR, found %s:\n' "${#jars[@]}" >&2
+            printf '%s\n' "${jars[@]}" >&2
+            exit 1
+          fi
+          echo "path=${jars[0]}" >> "$GITHUB_OUTPUT"
 
       - name: Upload JAR artifacts
         uses: actions/upload-artifact@v4
         with:
           name: aibot-jars-${{ github.sha }}
-          path: build/libs/*.jar
+          path: ${{ steps.runtime-jar.outputs.path }}
           if-no-files-found: error
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: build/libs/*.jar
+          files: ${{ steps.runtime-jar.outputs.path }}
           generate_release_notes: true

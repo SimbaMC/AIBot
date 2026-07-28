@@ -50,9 +50,16 @@ public final class MusicUrlPolicy {
         }
         if (addresses.length == 0) throw new MusicUrlException("Music CDN DNS returned no addresses");
         for (InetAddress address : addresses) {
-            if (!isPublic(address)) throw new MusicUrlException("Music CDN resolved to a non-public address");
+            if (!isPublic(address) && !isClashFakeIp(address))
+                throw new MusicUrlException("Music CDN resolved to a non-public address");
         }
         return uri;
+    }
+
+    private static boolean isClashFakeIp(InetAddress address) {
+        if (!(address instanceof Inet4Address)) return false;
+        byte[] bytes = address.getAddress();
+        return (bytes[0] & 0xff) == 198 && ((bytes[1] & 0xff) == 18 || (bytes[1] & 0xff) == 19);
     }
 
     private static boolean isIpLiteral(String host) {

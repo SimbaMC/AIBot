@@ -1,8 +1,12 @@
 
 Source installation information for modders
 -------------------------------------------
-AiBot 1.5.0 for NeoForge / Minecraft 1.21.1
+AiBot 1.5.1 for NeoForge / Minecraft 1.21.1
 --------------------------------------------
+Version 1.5.1 restores persisted and QR-login Netease cookies as browser-compatible
+cookies, upgrades playback HTTP URLs only for strict music.126.net CDN subdomains,
+and supports Clash enhanced-DNS fake IPs while retaining HTTPS hostname verification.
+
 Netease account lookup and cookies remain client-only. The server receives only
 bounded song metadata and a resolved playback URL, then validates strict HTTPS
 label-boundary subdomains of music.126.net and every DNS result. Private playback
