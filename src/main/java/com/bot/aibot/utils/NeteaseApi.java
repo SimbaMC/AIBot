@@ -278,17 +278,18 @@ public class NeteaseApi {
     public static List<Long> getPlaylistSongIds(long playlistId) {
         List<Long> ids = new ArrayList<>();
         try {
-            Map<String, Object> data = new HashMap<>();
-            data.put("id", playlistId); data.put("n", 0); data.put("csrf_token", "");
-            String jsonResp = request("https://music.163.com/weapi/v6/playlist/detail", data);
+            String jsonResp = requestRaw("https://music.163.com/api/v6/playlist/detail?id=" + playlistId
+                    + "&n=100000&s=0", null);
             JsonObject root = JsonParser.parseString(jsonResp).getAsJsonObject();
-            if (root.get("code").getAsInt() == 200) {
-                JsonArray trackIds = root.getAsJsonObject("playlist").getAsJsonArray("trackIds");
+            JsonObject playlist = root.has("playlist") && root.get("playlist").isJsonObject()
+                    ? root.getAsJsonObject("playlist") : null;
+            if (playlist != null && playlist.has("trackIds") && playlist.get("trackIds").isJsonArray()) {
+                JsonArray trackIds = playlist.getAsJsonArray("trackIds");
                 for (int i = 0; i < trackIds.size(); i++) {
                     ids.add(trackIds.get(i).getAsJsonObject().get("id").getAsLong());
                 }
             }
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) { LOGGER.warn("Failed to load complete Netease playlist", e); }
         return ids;
     }
 
@@ -297,15 +298,14 @@ public class NeteaseApi {
         List<SongInfo> list = new ArrayList<>();
         if (songIds.isEmpty()) return list;
         try {
-            Map<String, Object> data = new HashMap<>();
             List<Map<String, Object>> cList = new ArrayList<>();
             for (Long id : songIds) {
                 Map<String, Object> item = new HashMap<>(); item.put("id", id); cList.add(item);
             }
-            data.put("c", new com.google.gson.Gson().toJson(cList)); data.put("csrf_token", "");
-            String jsonResp = request("https://music.163.com/weapi/v3/song/detail", data);
+            String formData = "c=" + URLEncoder.encode(new com.google.gson.Gson().toJson(cList), StandardCharsets.UTF_8);
+            String jsonResp = requestRaw("https://music.163.com/api/v3/song/detail", formData);
             JsonObject root = JsonParser.parseString(jsonResp).getAsJsonObject();
-            if (root.has("songs")) {
+            if (root.has("songs") && root.get("songs").isJsonArray()) {
                 JsonArray songs = root.getAsJsonArray("songs");
                 for (int i = 0; i < songs.size(); i++) {
                     JsonObject song = songs.get(i).getAsJsonObject();
@@ -317,7 +317,7 @@ public class NeteaseApi {
                     list.add(new SongInfo(id, name, artist, duration));
                 }
             }
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) { LOGGER.warn("Failed to load Netease song details", e); }
         return list;
     }
 
@@ -325,13 +325,12 @@ public class NeteaseApi {
     public static List<SongInfo> searchList(String keyword) {
         List<SongInfo> list = new ArrayList<>();
         try {
-            Map<String, Object> data = new HashMap<>();
-            data.put("s", keyword); data.put("type", 1); data.put("limit", 20); data.put("offset", 0); data.put("csrf_token", "");
-            String jsonResp = request("https://music.163.com/weapi/cloudsearch/get/web", data);
+            String jsonResp = requestRaw("https://music.163.com/api/search/get/web?s="
+                    + URLEncoder.encode(keyword, StandardCharsets.UTF_8) + "&type=1&limit=50&offset=0", null);
             JsonObject root = JsonParser.parseString(jsonResp).getAsJsonObject();
-            if (root.has("result") && !root.get("result").isJsonNull()) {
+            if (root.has("result") && root.get("result").isJsonObject()) {
                 JsonObject result = root.getAsJsonObject("result");
-                if (result.has("songs")) {
+                if (result.has("songs") && result.get("songs").isJsonArray()) {
                     JsonArray songs = result.getAsJsonArray("songs");
                     for (int i = 0; i < songs.size(); i++) {
                         JsonObject song = songs.get(i).getAsJsonObject();
@@ -347,7 +346,7 @@ public class NeteaseApi {
                     }
                 }
             }
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) { LOGGER.warn("Failed to search Netease songs", e); }
         return list;
     }
 
