@@ -276,11 +276,18 @@ public final class NeteaseApi {
 
     public static List<SongInfo> searchList(String q) {
         try {
+            JsonObject response = parse(
+                send(
+                    BASE + "/api/search/get/web?s=" + URLEncoder.encode(q, "UTF-8") + "&type=1&limit=50&offset=0",
+                    null));
+            JsonObject result = response.has("result") && response.get("result")
+                .isJsonObject() ? response.getAsJsonObject("result") : null;
             return songs(
-                post(BASE + "/weapi/cloudsearch/get/web", map("s", q, "type", 1, "limit", 50, "offset", 0))
-                    .getAsJsonObject("result")
-                    .getAsJsonArray("songs"));
+                result != null && result.has("songs")
+                    && result.get("songs")
+                        .isJsonArray() ? result.getAsJsonArray("songs") : null);
         } catch (Exception e) {
+            BottyMod.LOG.warn("Failed to search Netease songs", e);
             return new ArrayList<SongInfo>();
         }
     }
@@ -331,22 +338,38 @@ public final class NeteaseApi {
     public static List<Long> getPlaylistSongIds(long id) {
         List<Long> r = new ArrayList<Long>();
         try {
-            JsonArray a = post(BASE + "/weapi/v6/playlist/detail", map("id", id, "n", 0)).getAsJsonObject("playlist")
-                .getAsJsonArray("trackIds");
+            JsonObject response = parse(send(BASE + "/api/v6/playlist/detail?id=" + id + "&n=100000&s=0", null));
+            JsonObject playlist = response.has("playlist") && response.get("playlist")
+                .isJsonObject() ? response.getAsJsonObject("playlist") : null;
+            JsonArray a = playlist != null && playlist.has("trackIds")
+                && playlist.get("trackIds")
+                    .isJsonArray() ? playlist.getAsJsonArray("trackIds") : null;
+            if (a == null) return r;
             for (JsonElement e : a) r.add(
                 e.getAsJsonObject()
                     .get("id")
                     .getAsLong());
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            BottyMod.LOG.warn("Failed to load complete Netease playlist", e);
+        }
         return r;
     }
 
     public static List<SongInfo> getSongsDetail(List<Long> ids) {
         try {
             List<Map<String, Object>> c = new ArrayList<Map<String, Object>>();
-            for (Long id : ids) c.add(map("id", id));
-            return songs(post(BASE + "/weapi/v3/song/detail", map("c", new Gson().toJson(c))).getAsJsonArray("songs"));
+            for (Long id : ids) {
+                Map<String, Object> song = new HashMap<String, Object>();
+                song.put("id", id);
+                c.add(song);
+            }
+            JsonObject response = parse(
+                send(BASE + "/api/v3/song/detail", "c=" + URLEncoder.encode(new Gson().toJson(c), "UTF-8")));
+            return songs(
+                response.has("songs") && response.get("songs")
+                    .isJsonArray() ? response.getAsJsonArray("songs") : null);
         } catch (Exception e) {
+            BottyMod.LOG.warn("Failed to load Netease song details", e);
             return new ArrayList<SongInfo>();
         }
     }
