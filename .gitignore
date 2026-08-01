@@ -13,6 +13,11 @@ out
 *.iml
 .idea
 
+# visual studio
+.vs/
+*.wsuo
+/layout.json
+
 # gradle
 build
 .gradle
