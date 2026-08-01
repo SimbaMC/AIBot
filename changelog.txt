@@ -1,3 +1,8 @@
+1.5.2-gtnh284
+- Fixed Enter-key search and music-list positioning in the responsive player GUI.
+- Updated Netease search, playlist-detail, and song-detail endpoints.
+- Request complete playlist track IDs and validate API response shapes.
+
 1.5.1-gtnh284
 - Fixed QR login completion so a successful scan leaves the QR view and restores the music player immediately.
 - Fixed restored Netease cookies and merged login response cookies before local persistence.
