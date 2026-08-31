@@ -1,6 +1,11 @@
 
 Source installation information for modders
 -------------------------------------------
+AiBot 1.6.0 adds GeoLite2 country display to !status. Place
+GeoLite2-Country.mmdb at config/aibot/GeoLite2-Country.mmdb. Static node
+mappings retain priority, and the network protocol remains compatible with
+older 1.x clients.
+
 AiBot 1.5.1 music security architecture
 ----------------------------------------
 Netease login cookies remain client-only. The client resolves a track URL and the

@@ -79,8 +79,10 @@ dependencies {
     bundledLibs 'javazoom:jlayer:1.0.1'
     implementation 'javazoom:jlayer:1.0.1'
     shade 'javazoom:jlayer:1.0.1'
+    shade 'com.maxmind.geoip2:geoip2:4.2.1'
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
     minecraftLibrary 'javazoom:jlayer:1.0.1'
+    minecraftLibrary 'com.maxmind.geoip2:geoip2:4.2.1'
 }
 
 def unpackedJlayerDir = layout.buildDirectory.dir("generated/jlayer-classes")

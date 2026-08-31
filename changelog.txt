@@ -1086,3 +1086,7 @@ AiBot 1.5.0
             * Make "Potentially dangerous alternative prefix" a debug warning, not info.
             Co-authored-by: Curle <curle@gemwire.uk>
             Co-authored-by: sciwhiz12 <arnoldnunag12@gmail.com>
+1.6.0
+- Added offline GeoLite2 country lookup for unmapped player source IPs in !status.
+- Fixed IPv6 source-address parsing and retained static node mapping priority.
+- Kept protocol version 1 and declared server-version tolerance for older clients.
