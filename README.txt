@@ -1,6 +1,11 @@
 
 Source installation information for modders
 -------------------------------------------
+AiBot 1.6.0 adds GeoLite2 country display to !status. Place
+GeoLite2-Country.mmdb at config/aibot/GeoLite2-Country.mmdb. Static node
+mappings retain priority, and the network protocol remains compatible with
+older 1.x clients.
+
 AiBot 1.5.1 for NeoForge / Minecraft 1.21.1
 --------------------------------------------
 Version 1.5.1 restores persisted and QR-login Netease cookies as browser-compatible

@@ -9,6 +9,7 @@ import com.bot.aibot.network.PacketHandler;
 import com.bot.aibot.security.MusicReportService;
 import com.bot.aibot.utils.ChineseUtils;
 import com.bot.aibot.utils.NeteaseApi;
+import com.bot.aibot.utils.GeoIpResolver;
 import net.minecraft.server.MinecraftServer;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
@@ -66,6 +67,7 @@ public class BottyMod {
 
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
+        GeoIpResolver.shutdown();
         BotClient.getInstance().close("Server Stopping");
         MusicReportService.shutdown();
         serverInstance = null;

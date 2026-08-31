@@ -1073,3 +1073,7 @@ AiBot 1.5.1
  - Allow Clash enhanced-DNS fake IPs while retaining HTTPS hostname verification.
  - Clean CI builds and publish exactly one non-slim runtime JAR under
    NeoForge 1.21.1 version tags.
+1.6.0
+- Added offline GeoLite2 country lookup for unmapped player source IPs in !status.
+- Fixed IPv6 source-address parsing and retained static node mapping priority.
+- Kept protocol version 1 and declared server-version tolerance for older clients.

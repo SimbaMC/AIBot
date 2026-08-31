@@ -3,6 +3,7 @@ package com.bot.aibot.network;
 import com.bot.aibot.BottyMod;
 import com.bot.aibot.binding.QQBindingManager;
 import com.bot.aibot.config.BotConfig;
+import com.bot.aibot.utils.GeoIpResolver;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.minecraft.network.chat.ClickEvent;
@@ -12,6 +13,8 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 
 import java.net.http.WebSocket;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -235,17 +238,7 @@ public class WSListener implements WebSocket.Listener {
                     boolean isOp = player.hasPermissions(4);
                     String opSymbol = isOp ? "🛡️ " : "";
 
-                    String nodeName = defaultNode;
-                    try {
-                        String fullAddress = "unknown";
-                        if (fullAddress.startsWith("/")) {
-                            fullAddress = fullAddress.substring(1);
-                        }
-                        String ipOnly = fullAddress.split(":")[0];
-
-                        nodeName = ipMap.getOrDefault(ipOnly, defaultNode);
-                    } catch (Exception e) {
-                    }
+                    String nodeName = resolveNode(player.connection.getRemoteAddress(), ipMap, defaultNode);
 
                     playerDetails.add(opSymbol + name + " [" + nodeName + "] (" + ping + "ms)");
                 }
@@ -272,6 +265,14 @@ public class WSListener implements WebSocket.Listener {
                 e.printStackTrace();
             }
         });
+    }
+
+    private static String resolveNode(SocketAddress address, java.util.Map<String, String> mappings, String fallback) {
+        if (!(address instanceof InetSocketAddress inetAddress) || inetAddress.getAddress() == null) return fallback;
+        String mapped = mappings.get(inetAddress.getAddress().getHostAddress());
+        if (mapped != null) return mapped;
+        String country = GeoIpResolver.resolveCountry(inetAddress.getAddress());
+        return country == null ? fallback : country;
     }
 
     private String extractValue(String params, String key) {

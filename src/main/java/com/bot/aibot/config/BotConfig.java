@@ -63,6 +63,7 @@ public class BotConfig {
         public final ModConfigSpec.ConfigValue<String> startMsgFormat;
         public final ModConfigSpec.ConfigValue<List<? extends String>> nodeMappings;
         public final ModConfigSpec.ConfigValue<String> defaultNodeName;
+        public final ModConfigSpec.ConfigValue<String> geoIpDatabase;
 
         public final ModConfigSpec.ConfigValue<String> qqFaceApi;
 
@@ -76,6 +77,10 @@ public class BotConfig {
             defaultNodeName = builder
                     .comment("当玩家 IP 不在映射列表中时显示的名称")
                     .define("defaultNodeName", "直连");
+
+            geoIpDatabase = builder
+                    .comment("GeoIP 国家数据库路径（相对于 config 目录，留空则禁用）")
+                    .define("geoIpDatabase", "aibot/GeoLite2-Country.mmdb");
 
             builder.pop();
             builder.comment("bot链接配置").push("general");
