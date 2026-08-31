@@ -16,6 +16,7 @@ import com.bot.aibot.network.PacketHandler;
 import com.bot.aibot.proxy.CommonProxy;
 import com.bot.aibot.security.MusicReportService;
 import com.bot.aibot.utils.ChineseUtils;
+import com.bot.aibot.utils.GeoIpResolver;
 
 import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.Mod;
@@ -68,6 +69,7 @@ public class BottyMod {
     @EventHandler
     public void serverStopping(FMLServerStoppingEvent event) {
         MusicReportService.shutdown();
+        GeoIpResolver.shutdown();
         BotClient.getInstance()
             .close("Server stopping");
         serverInstance = null;

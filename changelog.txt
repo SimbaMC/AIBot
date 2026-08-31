@@ -1,3 +1,9 @@
+1.6.0-gtnh284
+- Added local MaxMind GeoLite2 Country database support to !status for Chinese country names.
+- Kept static nodeMappings as the highest-priority labels and defaultNodeName as the safe fallback.
+- Fixed source-address extraction for IPv4 and IPv6, with database hot reload and clean shutdown.
+- Preserved server compatibility with older AiBot clients and the existing packet protocol.
+
 1.5.2-gtnh284
 - Fixed Enter-key search and music-list positioning in the responsive player GUI.
 - Updated Netease search, playlist-detail, and song-detail endpoints.

@@ -1,4 +1,4 @@
-AiBot 1.5.2-gtnh284 - Minecraft 1.7.10 / GT New Horizons 2.8.4
+AiBot 1.6.0-gtnh284 - Minecraft 1.7.10 / GT New Horizons 2.8.4
 
 AiBot bridges a Forge server to QQ through a OneBot 11 WebSocket and includes optional AI chat/death translation, QQ account binding, achievements, join/leave/chat/death sync, and client-side playback of server-provided music URLs.
 
@@ -14,6 +14,11 @@ config/aibot.cfg: WebSocket, groups, bridge features, AI endpoint/key, messages 
 config/aibot-client.cfg: local-only Netease login cookie (never sent to the server).
 config/aibot-qq-bindings.json: generated QQ binding database.
 config/aibot/custom_death.json: generated AI death translation cache.
+For !status country display, place a MaxMind GeoLite2-Country.mmdb database at
+config/aibot/GeoLite2-Country.mmdb. Static nodeMappings still take priority;
+private, unmapped, or unknown addresses use defaultNodeName.
+The server keeps acceptableRemoteVersions="*", so older AiBot clients remain
+accepted; this release does not change the existing network packet protocol.
 Defaults retain the old option names to ease migration from the 1.20 branch.
 
 Commands

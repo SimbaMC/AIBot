@@ -10,7 +10,7 @@ public final class BotConfig {
 
     public static String wsUrl, accessToken, mcPrefix, aiApiUrl, aiApiKey, aiModelName, aiPrompt, aiTriggerPrefix,
         aiDeathMode, aiDeathPrompt, joinMsgFormat, leaveMsgFormat, deathMsgFormat, chatMsgFormat, advancementMsgFormat,
-        startMsgFormat, qqFaceApi, defaultNodeName;
+        startMsgFormat, qqFaceApi, defaultNodeName, geoIpDatabase;
     public static String[] nodeMappings;
     public static long[] groupIds;
     public static long targetBotId;
@@ -34,6 +34,11 @@ public final class BotConfig {
             new String[] { "127.0.0.1:本地节点" },
             "节点 IP 映射配置。格式为 'IP:节点名'");
         defaultNodeName = server.getString("defaultNodeName", "Status_Command_Settings", "直连", "当玩家 IP 不在映射列表中时显示的名称");
+        geoIpDatabase = server.getString(
+            "geoIpDatabase",
+            "Status_Command_Settings",
+            "aibot/GeoLite2-Country.mmdb",
+            "GeoIP 国家数据库路径（相对于 config 目录，留空则禁用）");
         wsUrl = server.getString("ws_url", "general", "ws://127.0.0.1:3001", "WebSocket URL");
         accessToken = server.getString("access_token", "general", "", "NapCat/OneBot 鉴权 Token（未开启请留空）");
         groupIds = parseLongs(server.getStringList("group_ids", "general", new String[] { "0" }, "QQ群号列表"));

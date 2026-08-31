@@ -1,5 +1,7 @@
 package com.bot.aibot.network;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -20,6 +22,7 @@ import net.minecraft.util.EnumChatFormatting;
 import com.bot.aibot.BottyMod;
 import com.bot.aibot.binding.QQBindingManager;
 import com.bot.aibot.config.BotConfig;
+import com.bot.aibot.utils.GeoIpResolver;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -230,13 +233,16 @@ public final class WSListener {
     private static String resolveNode(EntityPlayerMP player, Map<String, String> mappings) {
         try {
             SocketAddress address = player.playerNetServerHandler.netManager.getSocketAddress();
-            String value = address == null ? "" : address.toString();
-            if (value.startsWith("/")) value = value.substring(1);
-            int colon = value.lastIndexOf(':');
-            String ip = colon > 0 ? value.substring(0, colon) : value;
+            if (!(address instanceof InetSocketAddress)) return BotConfig.defaultNodeName;
+            InetAddress inetAddress = ((InetSocketAddress) address).getAddress();
+            if (inetAddress == null) return BotConfig.defaultNodeName;
+            String ip = inetAddress.getHostAddress();
             String node = mappings.get(ip);
-            return node == null ? BotConfig.defaultNodeName : node;
-        } catch (Exception ignored) {
+            if (node != null) return node;
+            String country = GeoIpResolver.resolveCountry(inetAddress);
+            return country == null ? BotConfig.defaultNodeName : country;
+        } catch (RuntimeException e) {
+            BottyMod.LOG.warn(">>> [Bot] 玩家登录节点解析失败: " + player.getCommandSenderName(), e);
             return BotConfig.defaultNodeName;
         }
     }
